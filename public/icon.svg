@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Rounded elegant background card -->
+  <rect width="512" height="512" rx="110" fill="#4f46e5"/>
+  
+  <!-- Subtle inner gradient look via multiple shapes -->
+  <rect x="20" y="20" width="472" height="472" rx="90" fill="none" stroke="#6366f1" stroke-width="8" opacity="0.4"/>
+  
+  <!-- Fabric rolls / Loom weave grid -->
+  <path d="M120 160h272v192H120z" fill="#312e81" stroke="#ffffff" stroke-width="20" stroke-linecap="round" stroke-linejoin="round"/>
+  
+  <!-- Vertical Loom Warp Threads -->
+  <path d="M160 160v192" stroke="#818cf8" stroke-width="12" stroke-linecap="round"/>
+  <path d="M208 160v192" stroke="#a5b4fc" stroke-width="12" stroke-linecap="round"/>
+  <path d="M256 160v192" stroke="#e0e7ff" stroke-width="12" stroke-linecap="round"/>
+  <path d="M304 160v192" stroke="#a5b4fc" stroke-width="12" stroke-linecap="round"/>
+  <path d="M352 160v192" stroke="#818cf8" stroke-width="12" stroke-linecap="round"/>
+  
+  <!-- Horizontal Weft Thread / Shuttles -->
+  <path d="M100 256h312" stroke="#f43f5e" stroke-width="16" stroke-linecap="round" stroke-linejoin="round" opacity="0.9"/>
+  <polygon points="412,256 392,242 392,270" fill="#f43f5e"/>
+  
+  <!-- Upper & Lower Support beams of the Loom -->
+  <rect x="90" y="120" width="332" height="40" rx="12" fill="#1e1b4b" stroke="#ffffff" stroke-width="10"/>
+  <rect x="90" y="352" width="332" height="40" rx="12" fill="#1e1b4b" stroke="#ffffff" stroke-width="10"/>
+</svg>

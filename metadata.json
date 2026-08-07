@@ -1,0 +1,6 @@
+{
+  "name": "TexFlow Textile Factory",
+  "description": "Comprehensive payroll and production tracking system for Loom Workers and Admin Staff at TexFlow Textile Factory.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

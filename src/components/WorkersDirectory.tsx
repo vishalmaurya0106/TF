@@ -1,0 +1,662 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import React, { useState } from 'react';
+import { Worker, EmployeeType } from '../types';
+import { naturalSortWorkers, formatCurrency } from '../utils';
+import ConfirmModal from './ConfirmModal';
+import { 
+  Users, UserPlus, Pencil, Eye, ToggleLeft, ToggleRight, 
+  Search, ShieldAlert, CreditCard, Building2, UserCheck, 
+  Trash2, X, Check, Landmark, CalendarDays, Smartphone, MapPin
+} from 'lucide-react';
+
+interface WorkersDirectoryProps {
+  workers: Worker[];
+  onAddWorker: (worker: Worker) => void;
+  onUpdateWorker: (worker: Worker) => void;
+  onDeleteWorker: (workerId: string) => void;
+}
+
+export default function WorkersDirectory({ 
+  workers, 
+  onAddWorker, 
+  onUpdateWorker, 
+  onDeleteWorker 
+}: WorkersDirectoryProps) {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [typeFilter, setTypeFilter] = useState<'all' | EmployeeType>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('active');
+
+  // Confirmation Modal State
+  const [isConfirmDeleteOpen, setIsConfirmDeleteOpen] = useState(false);
+  const [deleteWorkerId, setDeleteWorkerId] = useState('');
+  const [deleteWorkerName, setDeleteWorkerName] = useState('');
+
+  // Form State
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [currentWorkerId, setCurrentWorkerId] = useState('');
+
+  // Form Fields
+  const [formWorkerId, setFormWorkerId] = useState('');
+  const [formName, setFormName] = useState('');
+  const [formMobile, setFormMobile] = useState('');
+  const [formAddress, setFormAddress] = useState('');
+  const [formJoiningDate, setFormJoiningDate] = useState('');
+  const [formAadhaar, setFormAadhaar] = useState('');
+  const [formRate, setFormRate] = useState('');
+  const [formType, setFormType] = useState<EmployeeType>('Worker');
+  const [formIsActive, setFormIsActive] = useState(true);
+
+  // Bank fields
+  const [formBankName, setFormBankName] = useState('');
+  const [formAccNumber, setFormAccNumber] = useState('');
+  const [formIfsc, setFormIfsc] = useState('');
+  const [formBeneficiary, setFormBeneficiary] = useState('');
+
+  // Validation Error state
+  const [errors, setErrors] = useState<{ [key: string]: string }>({});
+
+  // Reset form helper
+  const resetForm = () => {
+    setFormWorkerId('');
+    setFormName('');
+    setFormMobile('');
+    setFormAddress('');
+    setFormJoiningDate(new Date().toISOString().split('T')[0]);
+    setFormAadhaar('');
+    setFormRate('');
+    setFormType('Worker');
+    setFormIsActive(true);
+    setFormBankName('');
+    setFormAccNumber('');
+    setFormIfsc('');
+    setFormBeneficiary('');
+    setErrors({});
+  };
+
+  const handleOpenAddModal = () => {
+    setIsEditMode(false);
+    resetForm();
+    setIsModalOpen(true);
+  };
+
+  const handleOpenEditModal = (worker: Worker) => {
+    setIsEditMode(true);
+    setCurrentWorkerId(worker.workerId);
+    
+    setFormWorkerId(worker.workerId);
+    setFormName(worker.name);
+    setFormMobile(worker.mobileNumber);
+    setFormAddress(worker.address);
+    setFormJoiningDate(worker.joiningDate);
+    setFormAadhaar(worker.aadhaarNumber);
+    setFormRate(worker.perMachineRate.toString());
+    setFormType(worker.employeeType);
+    setFormIsActive(worker.isActive);
+    
+    setFormBankName(worker.bankDetails.bankName);
+    setFormAccNumber(worker.bankDetails.accountNumber);
+    setFormIfsc(worker.bankDetails.ifscCode);
+    setFormBeneficiary(worker.bankDetails.beneficiaryName);
+    
+    setErrors({});
+    setIsModalOpen(true);
+  };
+
+  // Validate form fields
+  const validateForm = (): boolean => {
+    const newErrors: { [key: string]: string } = {};
+
+    if (!formWorkerId.trim()) {
+      newErrors.workerId = 'Employee ID is required';
+    } else if (!isEditMode && workers.some(w => w.workerId.toLowerCase() === formWorkerId.trim().toLowerCase())) {
+      newErrors.workerId = 'Employee ID already exists';
+    }
+
+    if (!formName.trim()) {
+      newErrors.name = 'Employee Name is required';
+    }
+
+    if (!formMobile.trim()) {
+      newErrors.mobile = 'Mobile Number is required';
+    } else if (!/^\d{10}$/.test(formMobile.trim().replace(/\D/g, ''))) {
+      newErrors.mobile = 'Mobile Number must be exactly 10 digits';
+    }
+
+    if (!formAadhaar.trim()) {
+      newErrors.aadhaar = 'Aadhaar Number is required';
+    } else if (formAadhaar.trim().replace(/\s|-/g, '').length !== 12) {
+      newErrors.aadhaar = 'Aadhaar must be exactly 12 digits';
+    }
+
+    if (!formRate.trim()) {
+      newErrors.rate = 'Wages / Salary rate is required';
+    } else if (isNaN(parseFloat(formRate)) || parseFloat(formRate) < 0) {
+      newErrors.rate = 'Wages / Salary rate must be a positive decimal';
+    }
+
+    if (!formBankName.trim()) newErrors.bankName = 'Bank Name is required';
+    if (!formAccNumber.trim()) newErrors.accNumber = 'Account Number is required';
+    if (!formIfsc.trim()) newErrors.ifsc = 'IFSC Code is required';
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!validateForm()) return;
+
+    const parsedRate = parseFloat(parseFloat(formRate).toFixed(2));
+    
+    const workerPayload: Worker = {
+      workerId: formWorkerId.trim(),
+      name: formName.trim(),
+      mobileNumber: formMobile.trim(),
+      address: formAddress.trim(),
+      joiningDate: formJoiningDate,
+      aadhaarNumber: formAadhaar.trim().replace(/(\d{4})(\d{4})(\d{4})/, '$1-$2-$3'), // nice format
+      isActive: formIsActive,
+      perMachineRate: parsedRate,
+      employeeType: formType,
+      bankDetails: {
+        bankName: formBankName.trim(),
+        accountNumber: formAccNumber.trim(),
+        ifscCode: formIfsc.trim().toUpperCase(),
+        beneficiaryName: formBeneficiary.trim() || formName.trim()
+      }
+    };
+
+    if (isEditMode) {
+      onUpdateWorker(workerPayload);
+    } else {
+      onAddWorker(workerPayload);
+    }
+    
+    setIsModalOpen(false);
+  };
+
+  const toggleWorkerStatus = (worker: Worker) => {
+    onUpdateWorker({
+      ...worker,
+      isActive: !worker.isActive
+    });
+  };
+
+  // Filter & Natural Sort
+  const filteredWorkers = workers.filter(w => {
+    const matchesSearch = w.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                          w.workerId.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          w.mobileNumber.includes(searchTerm);
+    const matchesType = typeFilter === 'all' || w.employeeType === typeFilter;
+    const matchesStatus = statusFilter === 'all' || 
+                          (statusFilter === 'active' && w.isActive) || 
+                          (statusFilter === 'inactive' && !w.isActive);
+    return matchesSearch && matchesType && matchesStatus;
+  });
+
+  // CRITICAL REQUIREMENT: Sorted unki Employee ID (workerId) ke natural numeric order me
+  const sortedWorkers = naturalSortWorkers(filteredWorkers);
+
+  return (
+    <div className="space-y-6">
+      
+      {/* Header and Add Button */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+        <div className="flex items-center gap-3">
+          <div className="p-3 bg-indigo-50 rounded-xl text-indigo-600">
+            <Users className="h-6 w-6" />
+          </div>
+          <div>
+            <h2 id="workers-dir-title" className="text-xl font-bold text-slate-900">Employees Directory</h2>
+            <p className="text-sm text-slate-500 font-medium">Manage and monitor Loom Operators and Administrative Staff</p>
+          </div>
+        </div>
+        <button
+          id="add-worker-btn"
+          onClick={handleOpenAddModal}
+          className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-5 py-2.5 rounded-xl shadow-sm transition-all text-sm cursor-pointer hover:-translate-y-0.5 duration-150"
+        >
+          <UserPlus className="h-4.5 w-4.5" />
+          Register Employee
+        </button>
+      </div>
+
+      {/* Filter Bar */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-white p-5 rounded-2xl border border-slate-150 shadow-sm">
+        {/* Search */}
+        <div className="relative col-span-1 md:col-span-2">
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 h-4.5 w-4.5" />
+          <input
+            id="worker-search-input"
+            type="text"
+            placeholder="Search by Employee ID or Name..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-10 pr-4 py-2.5 bg-slate-50 hover:bg-slate-100 focus:bg-white border border-slate-200 focus:border-slate-400 rounded-xl outline-none text-sm transition-all font-medium"
+          />
+        </div>
+
+        {/* Employee Type Filter */}
+        <div>
+          <select
+            id="worker-type-filter"
+            value={typeFilter}
+            onChange={(e) => setTypeFilter(e.target.value as any)}
+            className="w-full px-3 py-2.5 bg-slate-50 hover:bg-slate-100 focus:bg-white border border-slate-200 focus:border-slate-400 rounded-xl outline-none text-sm transition-all font-medium"
+          >
+            <option value="all">All Employee Types</option>
+            <option value="Worker">Loom Workers</option>
+            <option value="Admin Employee">Admin Employees</option>
+          </select>
+        </div>
+
+        {/* Status Filter */}
+        <div>
+          <select
+            id="worker-status-filter"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as any)}
+            className="w-full px-3 py-2.5 bg-slate-50 hover:bg-slate-100 focus:bg-white border border-slate-200 focus:border-slate-400 rounded-xl outline-none text-sm transition-all font-medium"
+          >
+            <option value="all">All Statuses</option>
+            <option value="active">Active Only</option>
+            <option value="inactive">Inactive Only</option>
+          </select>
+        </div>
+      </div>
+
+      {/* Directory Table */}
+      <div className="bg-white rounded-2xl border border-slate-150 shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-slate-50 border-b border-slate-150 text-slate-400 text-xs font-bold uppercase tracking-wider">
+                <th className="px-6 py-4">Employee ID</th>
+                <th className="px-6 py-4">Name & Contact</th>
+                <th className="px-6 py-4">Employee Type</th>
+                <th className="px-6 py-4 text-right">Standard Rate</th>
+                <th className="px-6 py-4">Bank Details</th>
+                <th className="px-6 py-4">Status</th>
+                <th className="px-6 py-4 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 text-sm font-medium text-slate-700">
+              {sortedWorkers.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-6 py-12 text-center text-slate-400">
+                    <Users className="h-10 w-10 mx-auto text-slate-300 mb-3" />
+                    No employees matching the criteria found.
+                  </td>
+                </tr>
+              ) : (
+                sortedWorkers.map((worker) => (
+                  <tr key={worker.workerId} className="hover:bg-slate-50/50 transition-colors">
+                    <td className="px-6 py-4.5 font-mono font-bold text-slate-900">
+                      {worker.workerId}
+                    </td>
+                    <td className="px-6 py-4.5">
+                      <div>
+                        <div className="font-semibold text-slate-900">{worker.name}</div>
+                        <div className="text-xs text-slate-400 flex items-center gap-1 mt-0.5">
+                          <Smartphone className="h-3 w-3" /> {worker.mobileNumber}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4.5">
+                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ${
+                        worker.employeeType === 'Worker' 
+                          ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' 
+                          : 'bg-purple-50 text-purple-700 border border-purple-200'
+                      }`}>
+                        {worker.employeeType}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4.5 text-right font-mono text-slate-900">
+                      <div>{formatCurrency(worker.perMachineRate)}</div>
+                      <div className="text-[10px] text-slate-400 font-sans font-semibold">
+                        {worker.employeeType === 'Worker' ? 'per loom run' : 'per day standard'}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4.5">
+                      <div className="max-w-[200px]">
+                        <div className="font-semibold text-slate-800 text-xs flex items-center gap-1">
+                          <Building2 className="h-3 w-3 text-slate-400" /> {worker.bankDetails.bankName}
+                        </div>
+                        <div className="text-[11px] text-slate-400 font-mono mt-0.5">
+                          A/C: {worker.bankDetails.accountNumber}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4.5">
+                      <button
+                        onClick={() => toggleWorkerStatus(worker)}
+                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border transition-colors cursor-pointer ${
+                          worker.isActive 
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100' 
+                            : 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100'
+                        }`}
+                      >
+                        <span className={`h-1.5 w-1.5 rounded-full ${worker.isActive ? 'bg-emerald-600' : 'bg-rose-600'}`}></span>
+                        {worker.isActive ? 'Active' : 'Inactive'}
+                      </button>
+                    </td>
+                    <td className="px-6 py-4.5 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          title="Edit Employee details"
+                          onClick={() => handleOpenEditModal(worker)}
+                          className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-600 hover:text-slate-900 transition-colors cursor-pointer"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </button>
+                        <button
+                          title="Delete Employee"
+                          onClick={() => {
+                            setDeleteWorkerId(worker.workerId);
+                            setDeleteWorkerName(worker.name);
+                            setIsConfirmDeleteOpen(true);
+                          }}
+                          className="p-1.5 hover:bg-rose-50 rounded-lg text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Modal - Add / Edit Worker */}
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex justify-center items-center p-4 z-50">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            {/* Modal Header */}
+            <div className="bg-slate-900 text-white px-6 py-4 flex justify-between items-center">
+              <div className="flex items-center gap-2">
+                <Users className="h-5 w-5 text-indigo-400" />
+                <h3 id="modal-title" className="font-bold text-base">
+                  {isEditMode ? 'Edit Employee Profile' : 'Register New Employee'}
+                </h3>
+              </div>
+              <button
+                onClick={() => setIsModalOpen(false)}
+                className="p-1 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg transition-colors cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Modal Body / Form */}
+            <form id="worker-profile-form" onSubmit={handleSubmit} className="p-6 space-y-6 max-h-[80vh] overflow-y-auto">
+              
+              {/* Core Details */}
+              <div>
+                <h4 className="text-xs font-extrabold text-slate-400 uppercase tracking-widest mb-3 border-b pb-1">1. Company Profile</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Worker ID */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 mb-1.5">Employee ID (workerId) <span className="text-red-500">*</span></label>
+                    <input
+                      id="form-worker-id"
+                      type="text"
+                      placeholder="e.g., 220, TFW-1001"
+                      disabled={isEditMode}
+                      value={formWorkerId}
+                      onChange={(e) => setFormWorkerId(e.target.value)}
+                      className={`w-full px-3.5 py-2.5 border rounded-xl outline-none text-sm transition-all font-medium ${
+                        isEditMode ? 'bg-slate-100 border-slate-200 text-slate-500' : 'border-slate-200 focus:border-slate-400'
+                      }`}
+                    />
+                    {errors.workerId && <p className="text-xs text-red-500 mt-1 font-semibold">{errors.workerId}</p>}
+                  </div>
+
+                  {/* Employee Type */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 mb-1.5">Employee Designation Type <span className="text-red-500">*</span></label>
+                    <select
+                      id="form-worker-type"
+                      value={formType}
+                      onChange={(e) => setFormType(e.target.value as EmployeeType)}
+                      className="w-full px-3.5 py-2.5 border border-slate-200 focus:border-slate-400 rounded-xl outline-none text-sm transition-all font-medium"
+                    >
+                      <option value="Worker">Loom operator (Loom Worker)</option>
+                      <option value="Admin Employee">Administrative employee (Admin)</option>
+                    </select>
+                  </div>
+
+                  {/* Standard Wage Rate */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 mb-1.5">
+                      {formType === 'Worker' ? 'Per Loom Machine Rate (₹)' : 'Standard Daily Wage Salary (₹)'} <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      id="form-worker-rate"
+                      type="number"
+                      step="0.01"
+                      placeholder={formType === 'Worker' ? 'e.g., 350.50' : 'e.g., 1200.00'}
+                      value={formRate}
+                      onChange={(e) => setFormRate(e.target.value)}
+                      className="w-full px-3.5 py-2.5 border border-slate-200 focus:border-slate-400 rounded-xl outline-none text-sm transition-all font-mono font-bold"
+                    />
+                    {errors.rate && <p className="text-xs text-red-500 mt-1 font-semibold">{errors.rate}</p>}
+                    <span className="text-[10px] text-slate-400 mt-1 block">
+                      {formType === 'Worker' 
+                        ? 'Operational rate calculated per active loom machine production run.' 
+                        : 'Standard daily salary disbursed based on attendance registers.'}
+                    </span>
+                  </div>
+
+                  {/* Date of Joining */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 mb-1.5">Joining Date</label>
+                    <div className="relative">
+                      <CalendarDays className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 h-4.5 w-4.5" />
+                      <input
+                        id="form-worker-date"
+                        type="date"
+                        value={formJoiningDate}
+                        onChange={(e) => setFormJoiningDate(e.target.value)}
+                        className="w-full px-3.5 py-2.5 border border-slate-200 focus:border-slate-400 rounded-xl outline-none text-sm transition-all font-medium"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Personal Details */}
+              <div>
+                <h4 className="text-xs font-extrabold text-slate-400 uppercase tracking-widest mb-3 border-b pb-1">2. Personal Profile</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Full Name */}
+                  <div className="col-span-1 sm:col-span-2">
+                    <label className="block text-xs font-bold text-slate-600 mb-1.5">Employee Full Name <span className="text-red-500">*</span></label>
+                    <input
+                      id="form-worker-name"
+                      type="text"
+                      placeholder="e.g., Vishal Maurya"
+                      value={formName}
+                      onChange={(e) => setFormName(e.target.value)}
+                      className="w-full px-3.5 py-2.5 border border-slate-200 focus:border-slate-400 rounded-xl outline-none text-sm transition-all font-medium"
+                    />
+                    {errors.name && <p className="text-xs text-red-500 mt-1 font-semibold">{errors.name}</p>}
+                  </div>
+
+                  {/* Mobile Number */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 mb-1.5">Mobile Contact Number <span className="text-red-500">*</span></label>
+                    <input
+                      id="form-worker-mobile"
+                      type="tel"
+                      maxLength={10}
+                      placeholder="e.g., 9876543210"
+                      value={formMobile}
+                      onChange={(e) => setFormMobile(e.target.value)}
+                      className="w-full px-3.5 py-2.5 border border-slate-200 focus:border-slate-400 rounded-xl outline-none text-sm transition-all font-medium"
+                    />
+                    {errors.mobile && <p className="text-xs text-red-500 mt-1 font-semibold">{errors.mobile}</p>}
+                  </div>
+
+                  {/* Aadhaar Number */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 mb-1.5">Aadhaar Card Number <span className="text-red-500">*</span></label>
+                    <input
+                      id="form-worker-aadhaar"
+                      type="text"
+                      placeholder="e.g., 1234 5678 9012"
+                      value={formAadhaar}
+                      onChange={(e) => setFormAadhaar(e.target.value)}
+                      className="w-full px-3.5 py-2.5 border border-slate-200 focus:border-slate-400 rounded-xl outline-none text-sm transition-all font-mono"
+                    />
+                    {errors.aadhaar && <p className="text-xs text-red-500 mt-1 font-semibold">{errors.aadhaar}</p>}
+                  </div>
+
+                  {/* Residential Address */}
+                  <div className="col-span-1 sm:col-span-2">
+                    <label className="block text-xs font-bold text-slate-600 mb-1.5">Residential Address</label>
+                    <textarea
+                      id="form-worker-address"
+                      placeholder="Enter complete permanent/local residential address..."
+                      rows={2}
+                      value={formAddress}
+                      onChange={(e) => setFormAddress(e.target.value)}
+                      className="w-full px-3.5 py-2.5 border border-slate-200 focus:border-slate-400 rounded-xl outline-none text-sm transition-all font-medium resize-none"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Bank Details */}
+              <div>
+                <h4 className="text-xs font-extrabold text-slate-400 uppercase tracking-widest mb-3 border-b pb-1 flex items-center gap-1">
+                  <Landmark className="h-4 w-4 text-slate-500" /> 3. Bank Account & Remittance Details
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Bank Name */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 mb-1.5">Bank Name <span className="text-red-500">*</span></label>
+                    <input
+                      id="form-worker-bank"
+                      type="text"
+                      placeholder="e.g., State Bank of India"
+                      value={formBankName}
+                      onChange={(e) => setFormBankName(e.target.value)}
+                      className="w-full px-3.5 py-2.5 border border-slate-200 focus:border-slate-400 rounded-xl outline-none text-sm transition-all font-medium"
+                    />
+                    {errors.bankName && <p className="text-xs text-red-500 mt-1 font-semibold">{errors.bankName}</p>}
+                  </div>
+
+                  {/* Account Number */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 mb-1.5">Bank Account Number <span className="text-red-500">*</span></label>
+                    <input
+                      id="form-worker-account"
+                      type="text"
+                      placeholder="e.g., 32104598761"
+                      value={formAccNumber}
+                      onChange={(e) => setFormAccNumber(e.target.value)}
+                      className="w-full px-3.5 py-2.5 border border-slate-200 focus:border-slate-400 rounded-xl outline-none text-sm transition-all font-mono"
+                    />
+                    {errors.accNumber && <p className="text-xs text-red-500 mt-1 font-semibold">{errors.accNumber}</p>}
+                  </div>
+
+                  {/* IFSC Code */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 mb-1.5">IFSC Code <span className="text-red-500">*</span></label>
+                    <input
+                      id="form-worker-ifsc"
+                      type="text"
+                      placeholder="e.g., SBIN0001043"
+                      value={formIfsc}
+                      onChange={(e) => setFormIfsc(e.target.value)}
+                      className="w-full px-3.5 py-2.5 border border-slate-200 focus:border-slate-400 rounded-xl outline-none text-sm transition-all font-mono uppercase"
+                    />
+                    {errors.ifsc && <p className="text-xs text-red-500 mt-1 font-semibold">{errors.ifsc}</p>}
+                  </div>
+
+                  {/* Beneficiary Name */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 mb-1.5">Beneficiary Name (As in Passbook)</label>
+                    <input
+                      id="form-worker-beneficiary"
+                      type="text"
+                      placeholder="Leave blank to use full name"
+                      value={formBeneficiary}
+                      onChange={(e) => setFormBeneficiary(e.target.value)}
+                      className="w-full px-3.5 py-2.5 border border-slate-200 focus:border-slate-400 rounded-xl outline-none text-sm transition-all font-medium"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Active Toggle (Only on edit) */}
+              {isEditMode && (
+                <div className="flex items-center justify-between border border-slate-100 rounded-xl p-4 bg-slate-50">
+                  <div>
+                    <p className="text-sm font-bold text-slate-800">Is Employee Currently Active?</p>
+                    <p className="text-xs text-slate-400 mt-0.5">Inactive staff are hidden from daily production operations and logs.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setFormIsActive(!formIsActive)}
+                    className="cursor-pointer"
+                  >
+                    {formIsActive ? (
+                      <ToggleRight className="h-10 w-10 text-emerald-500" />
+                    ) : (
+                      <ToggleLeft className="h-10 w-10 text-slate-400" />
+                    )}
+                  </button>
+                </div>
+              )}
+
+              {/* Form Buttons */}
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
+                <button
+                  type="button"
+                  id="cancel-worker-form-btn"
+                  onClick={() => setIsModalOpen(false)}
+                  className="px-4.5 py-2 text-slate-600 font-bold bg-slate-100 hover:bg-slate-200 transition-colors rounded-xl text-sm cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  id="submit-worker-form-btn"
+                  className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold transition-all rounded-xl text-sm flex items-center gap-1 cursor-pointer"
+                >
+                  <Check className="h-4.5 w-4.5 text-white" />
+                  {isEditMode ? 'Update Profile' : 'Save & Register'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {isConfirmDeleteOpen && (
+        <ConfirmModal
+          isOpen={isConfirmDeleteOpen}
+          title="Delete Employee"
+          message={`Are you absolutely sure you want to delete ${deleteWorkerName} (ID: ${deleteWorkerId})? This will also remove their associated logs.`}
+          onConfirm={() => {
+            onDeleteWorker(deleteWorkerId);
+            setIsConfirmDeleteOpen(false);
+          }}
+          onCancel={() => {
+            setIsConfirmDeleteOpen(false);
+          }}
+        />
+      )}
+
+    </div>
+  );
+}
