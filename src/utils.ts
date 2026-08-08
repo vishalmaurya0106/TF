@@ -136,7 +136,48 @@ export const SEED_WORKERS: Worker[] = [
 
 // Seed some initial data for production & attendance to make the dashboard alive
 export const SEED_DAILY_WORK: DailyWork[] = [
-  // Vishal Maurya (ID: 220, rate: 350.50)
+  // Current month (2026-08) entries
+  {
+    workId: "w101",
+    workerId: "220",
+    date: "2026-08-01",
+    selectedMachines: ["Machine 01", "Machine 02", "Machine 03", "Machine 04"],
+    machineCount: 4,
+    perMachineRate: 350.50,
+    calculatedWage: 1402.00,
+    shift: 'Day'
+  },
+  {
+    workId: "w102",
+    workerId: "220",
+    date: "2026-08-05",
+    selectedMachines: ["Machine 01", "Machine 02", "Machine 03"],
+    machineCount: 3,
+    perMachineRate: 350.50,
+    calculatedWage: 1051.50,
+    shift: 'Day'
+  },
+  {
+    workId: "w103",
+    workerId: "3",
+    date: "2026-08-02",
+    selectedMachines: ["Machine 05", "Machine 06", "Machine 07"],
+    machineCount: 3,
+    perMachineRate: 320.25,
+    calculatedWage: 960.75,
+    shift: 'Day'
+  },
+  {
+    workId: "w104",
+    workerId: "22",
+    date: "2026-08-03",
+    selectedMachines: ["Machine 11", "Machine 12", "Machine 13", "Machine 14"],
+    machineCount: 4,
+    perMachineRate: 340.00,
+    calculatedWage: 1360.00,
+    shift: 'Day'
+  },
+  // Previous month (2026-07) entries
   {
     workId: "w1",
     workerId: "220",
@@ -164,7 +205,6 @@ export const SEED_DAILY_WORK: DailyWork[] = [
     perMachineRate: 350.50,
     calculatedWage: 701.00
   },
-  // Rajesh Kumar (ID: 3, rate: 320.25)
   {
     workId: "w4",
     workerId: "3",
@@ -183,7 +223,6 @@ export const SEED_DAILY_WORK: DailyWork[] = [
     perMachineRate: 320.25,
     calculatedWage: 960.75
   },
-  // Amir Khan (ID: 22, rate: 340.00)
   {
     workId: "w6",
     workerId: "22",
@@ -196,7 +235,36 @@ export const SEED_DAILY_WORK: DailyWork[] = [
 ];
 
 export const SEED_ADMIN_ATTENDANCE: AdminAttendance[] = [
-  // Satish Kumar (ID: 2, rate: 1200.75)
+  // Current month (2026-08) entries
+  {
+    adminAttendanceId: "a101",
+    workerId: "2",
+    date: "2026-08-01",
+    status: "Present",
+    calculatedWage: 1200.75
+  },
+  {
+    adminAttendanceId: "a102",
+    workerId: "2",
+    date: "2026-08-02",
+    status: "Present",
+    calculatedWage: 1200.75
+  },
+  {
+    adminAttendanceId: "a103",
+    workerId: "10",
+    date: "2026-08-01",
+    status: "Present",
+    calculatedWage: 1550.00
+  },
+  {
+    adminAttendanceId: "a104",
+    workerId: "10",
+    date: "2026-08-02",
+    status: "Present",
+    calculatedWage: 1550.00
+  },
+  // Previous month (2026-07) entries
   {
     adminAttendanceId: "a1",
     workerId: "2",
@@ -218,7 +286,6 @@ export const SEED_ADMIN_ATTENDANCE: AdminAttendance[] = [
     status: "Present",
     calculatedWage: 1200.75
   },
-  // Priya Sharma (ID: 10, rate: 1550.00)
   {
     adminAttendanceId: "a4",
     workerId: "10",

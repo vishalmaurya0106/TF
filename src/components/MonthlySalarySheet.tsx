@@ -29,8 +29,8 @@ export default function MonthlySalarySheet({
   onUpdateSalary
 }: MonthlySalarySheetProps) {
   
-  // State for selected Month
-  const [selectedMonth, setSelectedMonth] = useState('2026-07'); // YYYY-MM
+  // State for selected Month (defaults to current month YYYY-MM)
+  const [selectedMonth, setSelectedMonth] = useState(() => new Date().toISOString().substring(0, 7));
 
   // State for launching Payslip PDF
   const [activeSlipWorker, setActiveSlipWorker] = useState<Worker | null>(null);
