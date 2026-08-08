@@ -163,20 +163,31 @@ export default function MonthlySalarySheet({
         };
       })
       .filter(item => item.netSalary > 0)
-      .map(item => [
-        item.worker.workerId,
-        item.worker.name,
-        item.netSalary,
-        item.worker.bankDetails?.beneficiaryName || item.worker.name,
-        item.worker.bankDetails?.accountNumber || '',
-        item.worker.bankDetails?.ifscCode || ''
-      ]);
+      .map(item => {
+        const rawAcc = item.worker.bankDetails?.accountNumber?.trim() || '';
+        // Format account number as Excel string formula `="ACC_NO"` to prevent scientific notation (1.09823E+13) and keep full digits
+        const formattedAcc = rawAcc ? `="${rawAcc}"` : '';
+        const rawIfsc = item.worker.bankDetails?.ifscCode?.trim() || '';
+        const formattedIfsc = rawIfsc ? `="${rawIfsc}"` : '';
+
+        return [
+          item.worker.workerId,
+          item.worker.name,
+          item.netSalary,
+          item.worker.bankDetails?.beneficiaryName || item.worker.name,
+          formattedAcc,
+          formattedIfsc
+        ];
+      });
 
     // Generate CSV content
     const csvContent = [
       headers.join(','),
       ...rows.map(r => r.map(val => {
         const strVal = String(val);
+        if (strVal.startsWith('=')) {
+          return strVal;
+        }
         if (strVal.includes(',') || strVal.includes('"') || strVal.includes('\n')) {
           return `"${strVal.replace(/"/g, '""')}"`;
         }
@@ -420,7 +431,7 @@ export default function MonthlySalarySheet({
                       <td className="px-5 py-4.5">
                         <div className="font-semibold text-slate-900">{worker.workerId} - {worker.name}</div>
                         <div className="text-[10px] text-slate-400 font-mono mt-0.5">
-                          {worker.bankDetails.bankName} | Acc: {worker.bankDetails.accountNumber.slice(-4).padStart(worker.bankDetails.accountNumber.length, '•')}
+                          {worker.bankDetails?.bankName} {worker.bankDetails?.accountNumber ? `| Acc: ${worker.bankDetails.accountNumber}` : ''}
                         </div>
                       </td>
 
