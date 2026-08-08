@@ -16,7 +16,6 @@ export async function testSupabaseConnection(): Promise<{ success: boolean; mess
   try {
     const { data, error } = await supabase.from('workers').select('workerId').limit(1);
     if (error) {
-      // Check if table missing
       if (error.code === '42P01' || error.message.includes('relation "public.workers" does not exist')) {
         return {
           success: false,
@@ -32,118 +31,317 @@ export async function testSupabaseConnection(): Promise<{ success: boolean; mess
   }
 }
 
-// Data fetchers from Supabase
-export async function fetchSupabaseWorkers(): Promise<Worker[] | null> {
-  try {
-    const { data, error } = await supabase.from('workers').select('*');
-    if (error || !data) return null;
-    return data.map((item: any) => ({
-      workerId: item.workerId,
-      name: item.name,
-      mobileNumber: item.mobileNumber || '',
-      address: item.address || '',
-      joiningDate: item.joiningDate || '',
-      bankDetails: typeof item.bankDetails === 'string' ? JSON.parse(item.bankDetails) : (item.bankDetails || { bankName: '', accountNumber: '', ifscCode: '', beneficiaryName: '' }),
-      aadhaarNumber: item.aadhaarNumber || '',
-      isActive: item.isActive ?? true,
-      perMachineRate: item.perMachineRate ?? 0,
-      employeeType: item.employeeType || 'Worker'
-    }));
-  } catch (e) {
-    console.warn('Supabase fetch workers error:', e);
-    return null;
-  }
+// ==========================================
+// FETCH ALL FUNCTIONS FROM SUPABASE
+// ==========================================
+
+export async function fetchSupabaseWorkers(): Promise<Worker[]> {
+  const { data, error } = await supabase.from('workers').select('*');
+  if (error) throw new Error(`Workers fetch failed: ${error.message}`);
+  return (data || []).map((item: any) => ({
+    workerId: item.workerId,
+    name: item.name,
+    mobileNumber: item.mobileNumber || '',
+    address: item.address || '',
+    joiningDate: item.joiningDate || '',
+    bankDetails: typeof item.bankDetails === 'string' ? JSON.parse(item.bankDetails) : (item.bankDetails || { bankName: '', accountNumber: '', ifscCode: '', beneficiaryName: '' }),
+    aadhaarNumber: item.aadhaarNumber || '',
+    isActive: item.isActive ?? true,
+    perMachineRate: Number(item.perMachineRate ?? 0),
+    employeeType: item.employeeType || 'Worker'
+  }));
 }
 
-export async function fetchSupabaseMachines(): Promise<Machine[] | null> {
-  try {
-    const { data, error } = await supabase.from('machines').select('*');
-    if (error || !data) return null;
-    return data.map((item: any) => ({
-      machineId: item.machineId,
-      isActive: item.isActive ?? true
-    }));
-  } catch (e) {
-    return null;
-  }
+export async function fetchSupabaseMachines(): Promise<Machine[]> {
+  const { data, error } = await supabase.from('machines').select('*');
+  if (error) throw new Error(`Machines fetch failed: ${error.message}`);
+  return (data || []).map((item: any) => ({
+    machineId: item.machineId,
+    isActive: item.isActive ?? true
+  }));
 }
 
-export async function fetchSupabaseDailyWorks(): Promise<DailyWork[] | null> {
-  try {
-    const { data, error } = await supabase.from('daily_works').select('*');
-    if (error || !data) return null;
-    return data.map((item: any) => ({
-      workId: item.workId,
-      workerId: item.workerId,
-      date: item.date,
-      selectedMachines: typeof item.selectedMachines === 'string' ? JSON.parse(item.selectedMachines) : (item.selectedMachines || []),
-      machineCount: item.machineCount ?? 0,
-      perMachineRate: item.perMachineRate ?? 0,
-      calculatedWage: item.calculatedWage ?? 0,
-      shift: item.shift
-    }));
-  } catch (e) {
-    return null;
-  }
+export async function fetchSupabaseDailyWorks(): Promise<DailyWork[]> {
+  const { data, error } = await supabase.from('daily_works').select('*');
+  if (error) throw new Error(`DailyWorks fetch failed: ${error.message}`);
+  return (data || []).map((item: any) => ({
+    workId: item.workId,
+    workerId: item.workerId,
+    date: item.date,
+    selectedMachines: typeof item.selectedMachines === 'string' ? JSON.parse(item.selectedMachines) : (item.selectedMachines || []),
+    machineCount: Number(item.machineCount ?? 0),
+    perMachineRate: Number(item.perMachineRate ?? 0),
+    calculatedWage: Number(item.calculatedWage ?? 0),
+    shift: item.shift || 'Day'
+  }));
 }
 
-export async function fetchSupabaseAdminAttendances(): Promise<AdminAttendance[] | null> {
-  try {
-    const { data, error } = await supabase.from('admin_attendances').select('*');
-    if (error || !data) return null;
-    return data.map((item: any) => ({
-      adminAttendanceId: item.adminAttendanceId,
-      workerId: item.workerId,
-      date: item.date,
-      status: item.status,
-      calculatedWage: item.calculatedWage ?? 0
-    }));
-  } catch (e) {
-    return null;
-  }
+export async function fetchSupabaseAdminAttendances(): Promise<AdminAttendance[]> {
+  const { data, error } = await supabase.from('admin_attendances').select('*');
+  if (error) throw new Error(`AdminAttendances fetch failed: ${error.message}`);
+  return (data || []).map((item: any) => ({
+    adminAttendanceId: item.adminAttendanceId,
+    workerId: item.workerId,
+    date: item.date,
+    status: item.status,
+    calculatedWage: Number(item.calculatedWage ?? 0)
+  }));
 }
 
-export async function fetchSupabaseAttendances(): Promise<Attendance[] | null> {
-  try {
-    const { data, error } = await supabase.from('attendances').select('*');
-    if (error || !data) return null;
-    return data.map((item: any) => ({
-      attendanceId: item.attendanceId,
-      workerId: item.workerId,
-      date: item.date,
-      status: item.status,
-      inTime: item.inTime || '',
-      outTime: item.outTime || ''
-    }));
-  } catch (e) {
-    return null;
-  }
+export async function fetchSupabaseAttendances(): Promise<Attendance[]> {
+  const { data, error } = await supabase.from('attendances').select('*');
+  if (error) throw new Error(`Attendances fetch failed: ${error.message}`);
+  return (data || []).map((item: any) => ({
+    attendanceId: item.attendanceId,
+    workerId: item.workerId,
+    date: item.date,
+    status: item.status,
+    inTime: item.inTime || '',
+    outTime: item.outTime || ''
+  }));
 }
 
-export async function fetchSupabaseSalaries(): Promise<Salary[] | null> {
-  try {
-    const { data, error } = await supabase.from('salaries').select('*');
-    if (error || !data) return null;
-    return data.map((item: any) => ({
-      salaryId: item.salaryId,
-      workerId: item.workerId,
-      month: item.month,
-      baseSalary: item.baseSalary ?? 0,
-      bonus: item.bonus ?? 0,
-      advance: item.advance ?? 0,
-      deductions: item.deductions ?? 0,
-      netSalary: item.netSalary ?? 0,
-      status: item.status || 'Pending'
-    }));
-  } catch (e) {
-    return null;
-  }
+export async function fetchSupabaseSalaries(): Promise<Salary[]> {
+  const { data, error } = await supabase.from('salaries').select('*');
+  if (error) throw new Error(`Salaries fetch failed: ${error.message}`);
+  return (data || []).map((item: any) => ({
+    salaryId: item.salaryId,
+    workerId: item.workerId,
+    month: item.month,
+    baseSalary: Number(item.baseSalary ?? 0),
+    bonus: Number(item.bonus ?? 0),
+    advance: Number(item.advance ?? 0),
+    deductions: Number(item.deductions ?? 0),
+    netSalary: Number(item.netSalary ?? 0),
+    status: item.status || 'Pending'
+  }));
 }
 
-// Data pushers to Supabase
-export async function syncWorkersToSupabase(workers: Worker[]) {
-  try {
-    if (workers.length === 0) return;
+// ==========================================
+// ATOMIC CRUD FUNCTIONS FOR WORKERS
+// ==========================================
+
+export async function createWorker(worker: Worker): Promise<void> {
+  const payload = {
+    workerId: worker.workerId,
+    name: worker.name,
+    mobileNumber: worker.mobileNumber,
+    address: worker.address,
+    joiningDate: worker.joiningDate,
+    bankDetails: worker.bankDetails,
+    aadhaarNumber: worker.aadhaarNumber,
+    isActive: worker.isActive,
+    perMachineRate: worker.perMachineRate,
+    employeeType: worker.employeeType
+  };
+  const { error } = await supabase.from('workers').upsert([payload], { onConflict: 'workerId' });
+  if (error) throw new Error(`Create worker failed: ${error.message}`);
+}
+
+export async function updateWorker(worker: Worker): Promise<void> {
+  const payload = {
+    name: worker.name,
+    mobileNumber: worker.mobileNumber,
+    address: worker.address,
+    joiningDate: worker.joiningDate,
+    bankDetails: worker.bankDetails,
+    aadhaarNumber: worker.aadhaarNumber,
+    isActive: worker.isActive,
+    perMachineRate: worker.perMachineRate,
+    employeeType: worker.employeeType
+  };
+  const { error } = await supabase.from('workers').update(payload).eq('workerId', worker.workerId);
+  if (error) throw new Error(`Update worker failed: ${error.message}`);
+}
+
+export async function deleteWorker(workerId: string): Promise<void> {
+  const { error } = await supabase.from('workers').delete().eq('workerId', workerId);
+  if (error) throw new Error(`Delete worker failed: ${error.message}`);
+}
+
+// ==========================================
+// ATOMIC CRUD FUNCTIONS FOR MACHINES
+// ==========================================
+
+export async function createMachine(machine: Machine): Promise<void> {
+  const payload = { machineId: machine.machineId, isActive: machine.isActive };
+  const { error } = await supabase.from('machines').upsert([payload], { onConflict: 'machineId' });
+  if (error) throw new Error(`Create machine failed: ${error.message}`);
+}
+
+export async function updateMachine(machine: Machine): Promise<void> {
+  const payload = { isActive: machine.isActive };
+  const { error } = await supabase.from('machines').update(payload).eq('machineId', machine.machineId);
+  if (error) throw new Error(`Update machine failed: ${error.message}`);
+}
+
+export async function deleteMachine(machineId: string): Promise<void> {
+  const { error } = await supabase.from('machines').delete().eq('machineId', machineId);
+  if (error) throw new Error(`Delete machine failed: ${error.message}`);
+}
+
+// ==========================================
+// ATOMIC CRUD FUNCTIONS FOR DAILY WORKS
+// ==========================================
+
+export async function createDailyWork(work: DailyWork): Promise<void> {
+  const payload = {
+    workId: work.workId,
+    workerId: work.workerId,
+    date: work.date,
+    selectedMachines: work.selectedMachines,
+    machineCount: work.machineCount,
+    perMachineRate: work.perMachineRate,
+    calculatedWage: work.calculatedWage,
+    shift: work.shift || 'Day'
+  };
+  const { error } = await supabase.from('daily_works').upsert([payload], { onConflict: 'workId' });
+  if (error) throw new Error(`Create daily work failed: ${error.message}`);
+}
+
+export async function updateDailyWork(work: DailyWork): Promise<void> {
+  const payload = {
+    workerId: work.workerId,
+    date: work.date,
+    selectedMachines: work.selectedMachines,
+    machineCount: work.machineCount,
+    perMachineRate: work.perMachineRate,
+    calculatedWage: work.calculatedWage,
+    shift: work.shift || 'Day'
+  };
+  const { error } = await supabase.from('daily_works').update(payload).eq('workId', work.workId);
+  if (error) throw new Error(`Update daily work failed: ${error.message}`);
+}
+
+export async function deleteDailyWork(workId: string): Promise<void> {
+  const { error } = await supabase.from('daily_works').delete().eq('workId', workId);
+  if (error) throw new Error(`Delete daily work failed: ${error.message}`);
+}
+
+// ==========================================
+// ATOMIC CRUD FUNCTIONS FOR ADMIN ATTENDANCE
+// ==========================================
+
+export async function createAdminAttendance(attendance: AdminAttendance): Promise<void> {
+  const payload = {
+    adminAttendanceId: attendance.adminAttendanceId,
+    workerId: attendance.workerId,
+    date: attendance.date,
+    status: attendance.status,
+    calculatedWage: attendance.calculatedWage
+  };
+  const { error } = await supabase.from('admin_attendances').upsert([payload], { onConflict: 'adminAttendanceId' });
+  if (error) throw new Error(`Create admin attendance failed: ${error.message}`);
+}
+
+export async function updateAdminAttendance(attendance: AdminAttendance): Promise<void> {
+  const payload = {
+    workerId: attendance.workerId,
+    date: attendance.date,
+    status: attendance.status,
+    calculatedWage: attendance.calculatedWage
+  };
+  const { error } = await supabase.from('admin_attendances').update(payload).eq('adminAttendanceId', attendance.adminAttendanceId);
+  if (error) throw new Error(`Update admin attendance failed: ${error.message}`);
+}
+
+export async function deleteAdminAttendance(adminAttendanceId: string): Promise<void> {
+  const { error } = await supabase.from('admin_attendances').delete().eq('adminAttendanceId', adminAttendanceId);
+  if (error) throw new Error(`Delete admin attendance failed: ${error.message}`);
+}
+
+// ==========================================
+// ATOMIC CRUD FUNCTIONS FOR LOOM ATTENDANCE
+// ==========================================
+
+export async function createAttendance(attendance: Attendance): Promise<void> {
+  const payload = {
+    attendanceId: attendance.attendanceId,
+    workerId: attendance.workerId,
+    date: attendance.date,
+    status: attendance.status,
+    inTime: attendance.inTime,
+    outTime: attendance.outTime
+  };
+  const { error } = await supabase.from('attendances').upsert([payload], { onConflict: 'attendanceId' });
+  if (error) throw new Error(`Create attendance failed: ${error.message}`);
+}
+
+export async function updateAttendance(attendance: Attendance): Promise<void> {
+  const payload = {
+    workerId: attendance.workerId,
+    date: attendance.date,
+    status: attendance.status,
+    inTime: attendance.inTime,
+    outTime: attendance.outTime
+  };
+  const { error } = await supabase.from('attendances').update(payload).eq('attendanceId', attendance.attendanceId);
+  if (error) throw new Error(`Update attendance failed: ${error.message}`);
+}
+
+export async function deleteAttendance(attendanceId: string): Promise<void> {
+  const { error } = await supabase.from('attendances').delete().eq('attendanceId', attendanceId);
+  if (error) throw new Error(`Delete attendance failed: ${error.message}`);
+}
+
+// ==========================================
+// ATOMIC CRUD FUNCTIONS FOR SALARIES
+// ==========================================
+
+export async function createSalary(salary: Salary): Promise<void> {
+  const payload = {
+    salaryId: salary.salaryId,
+    workerId: salary.workerId,
+    month: salary.month,
+    baseSalary: salary.baseSalary,
+    bonus: salary.bonus,
+    advance: salary.advance,
+    deductions: salary.deductions,
+    netSalary: salary.netSalary,
+    status: salary.status
+  };
+  const { error } = await supabase.from('salaries').upsert([payload], { onConflict: 'salaryId' });
+  if (error) throw new Error(`Create salary failed: ${error.message}`);
+}
+
+export async function updateSalary(salary: Salary): Promise<void> {
+  const payload = {
+    workerId: salary.workerId,
+    month: salary.month,
+    baseSalary: salary.baseSalary,
+    bonus: salary.bonus,
+    advance: salary.advance,
+    deductions: salary.deductions,
+    netSalary: salary.netSalary,
+    status: salary.status
+  };
+  const { error } = await supabase.from('salaries').update(payload).eq('salaryId', salary.salaryId);
+  if (error) throw new Error(`Update salary failed: ${error.message}`);
+}
+
+export async function deleteSalary(salaryId: string): Promise<void> {
+  const { error } = await supabase.from('salaries').delete().eq('salaryId', salaryId);
+  if (error) throw new Error(`Delete salary failed: ${error.message}`);
+}
+
+// ==========================================
+// RECONCILIATION & SYNC FUNCTIONS
+// ==========================================
+
+export async function reconcileWorkersToSupabase(workers: Worker[]): Promise<void> {
+  const { data: remoteData, error: fetchErr } = await supabase.from('workers').select('workerId');
+  if (fetchErr) throw new Error(`Sync workers fetch failed: ${fetchErr.message}`);
+
+  const remoteIds = (remoteData || []).map((r: any) => r.workerId);
+  const currentIds = new Set(workers.map(w => w.workerId));
+  const idsToDelete = remoteIds.filter(id => !currentIds.has(id));
+
+  if (idsToDelete.length > 0) {
+    const { error: delErr } = await supabase.from('workers').delete().in('workerId', idsToDelete);
+    if (delErr) throw new Error(`Sync workers delete failed: ${delErr.message}`);
+  }
+
+  if (workers.length > 0) {
     const payload = workers.map(w => ({
       workerId: w.workerId,
       name: w.name,
@@ -156,28 +354,48 @@ export async function syncWorkersToSupabase(workers: Worker[]) {
       perMachineRate: w.perMachineRate,
       employeeType: w.employeeType
     }));
-    await supabase.from('workers').upsert(payload, { onConflict: 'workerId' });
-  } catch (e) {
-    console.warn('Sync workers to Supabase error:', e);
+    const { error: upsertErr } = await supabase.from('workers').upsert(payload, { onConflict: 'workerId' });
+    if (upsertErr) throw new Error(`Sync workers upsert failed: ${upsertErr.message}`);
   }
 }
 
-export async function syncMachinesToSupabase(machines: Machine[]) {
-  try {
-    if (machines.length === 0) return;
+export async function reconcileMachinesToSupabase(machines: Machine[]): Promise<void> {
+  const { data: remoteData, error: fetchErr } = await supabase.from('machines').select('machineId');
+  if (fetchErr) throw new Error(`Sync machines fetch failed: ${fetchErr.message}`);
+
+  const remoteIds = (remoteData || []).map((r: any) => r.machineId);
+  const currentIds = new Set(machines.map(m => m.machineId));
+  const idsToDelete = remoteIds.filter(id => !currentIds.has(id));
+
+  if (idsToDelete.length > 0) {
+    const { error: delErr } = await supabase.from('machines').delete().in('machineId', idsToDelete);
+    if (delErr) throw new Error(`Sync machines delete failed: ${delErr.message}`);
+  }
+
+  if (machines.length > 0) {
     const payload = machines.map(m => ({
       machineId: m.machineId,
       isActive: m.isActive
     }));
-    await supabase.from('machines').upsert(payload, { onConflict: 'machineId' });
-  } catch (e) {
-    console.warn('Sync machines to Supabase error:', e);
+    const { error: upsertErr } = await supabase.from('machines').upsert(payload, { onConflict: 'machineId' });
+    if (upsertErr) throw new Error(`Sync machines upsert failed: ${upsertErr.message}`);
   }
 }
 
-export async function syncDailyWorksToSupabase(dailyWorks: DailyWork[]) {
-  try {
-    if (dailyWorks.length === 0) return;
+export async function reconcileDailyWorksToSupabase(dailyWorks: DailyWork[]): Promise<void> {
+  const { data: remoteData, error: fetchErr } = await supabase.from('daily_works').select('workId');
+  if (fetchErr) throw new Error(`Sync daily works fetch failed: ${fetchErr.message}`);
+
+  const remoteIds = (remoteData || []).map((r: any) => r.workId);
+  const currentIds = new Set(dailyWorks.map(dw => dw.workId));
+  const idsToDelete = remoteIds.filter(id => !currentIds.has(id));
+
+  if (idsToDelete.length > 0) {
+    const { error: delErr } = await supabase.from('daily_works').delete().in('workId', idsToDelete);
+    if (delErr) throw new Error(`Sync daily works delete failed: ${delErr.message}`);
+  }
+
+  if (dailyWorks.length > 0) {
     const payload = dailyWorks.map(dw => ({
       workId: dw.workId,
       workerId: dw.workerId,
@@ -188,15 +406,25 @@ export async function syncDailyWorksToSupabase(dailyWorks: DailyWork[]) {
       calculatedWage: dw.calculatedWage,
       shift: dw.shift || 'Day'
     }));
-    await supabase.from('daily_works').upsert(payload, { onConflict: 'workId' });
-  } catch (e) {
-    console.warn('Sync daily works to Supabase error:', e);
+    const { error: upsertErr } = await supabase.from('daily_works').upsert(payload, { onConflict: 'workId' });
+    if (upsertErr) throw new Error(`Sync daily works upsert failed: ${upsertErr.message}`);
   }
 }
 
-export async function syncAdminAttendancesToSupabase(adminAttendances: AdminAttendance[]) {
-  try {
-    if (adminAttendances.length === 0) return;
+export async function reconcileAdminAttendancesToSupabase(adminAttendances: AdminAttendance[]): Promise<void> {
+  const { data: remoteData, error: fetchErr } = await supabase.from('admin_attendances').select('adminAttendanceId');
+  if (fetchErr) throw new Error(`Sync admin attendances fetch failed: ${fetchErr.message}`);
+
+  const remoteIds = (remoteData || []).map((r: any) => r.adminAttendanceId);
+  const currentIds = new Set(adminAttendances.map(aa => aa.adminAttendanceId));
+  const idsToDelete = remoteIds.filter(id => !currentIds.has(id));
+
+  if (idsToDelete.length > 0) {
+    const { error: delErr } = await supabase.from('admin_attendances').delete().in('adminAttendanceId', idsToDelete);
+    if (delErr) throw new Error(`Sync admin attendances delete failed: ${delErr.message}`);
+  }
+
+  if (adminAttendances.length > 0) {
     const payload = adminAttendances.map(aa => ({
       adminAttendanceId: aa.adminAttendanceId,
       workerId: aa.workerId,
@@ -204,15 +432,25 @@ export async function syncAdminAttendancesToSupabase(adminAttendances: AdminAtte
       status: aa.status,
       calculatedWage: aa.calculatedWage
     }));
-    await supabase.from('admin_attendances').upsert(payload, { onConflict: 'adminAttendanceId' });
-  } catch (e) {
-    console.warn('Sync admin attendances to Supabase error:', e);
+    const { error: upsertErr } = await supabase.from('admin_attendances').upsert(payload, { onConflict: 'adminAttendanceId' });
+    if (upsertErr) throw new Error(`Sync admin attendances upsert failed: ${upsertErr.message}`);
   }
 }
 
-export async function syncAttendancesToSupabase(attendances: Attendance[]) {
-  try {
-    if (attendances.length === 0) return;
+export async function reconcileAttendancesToSupabase(attendances: Attendance[]): Promise<void> {
+  const { data: remoteData, error: fetchErr } = await supabase.from('attendances').select('attendanceId');
+  if (fetchErr) throw new Error(`Sync attendances fetch failed: ${fetchErr.message}`);
+
+  const remoteIds = (remoteData || []).map((r: any) => r.attendanceId);
+  const currentIds = new Set(attendances.map(a => a.attendanceId));
+  const idsToDelete = remoteIds.filter(id => !currentIds.has(id));
+
+  if (idsToDelete.length > 0) {
+    const { error: delErr } = await supabase.from('attendances').delete().in('attendanceId', idsToDelete);
+    if (delErr) throw new Error(`Sync attendances delete failed: ${delErr.message}`);
+  }
+
+  if (attendances.length > 0) {
     const payload = attendances.map(a => ({
       attendanceId: a.attendanceId,
       workerId: a.workerId,
@@ -221,15 +459,25 @@ export async function syncAttendancesToSupabase(attendances: Attendance[]) {
       inTime: a.inTime,
       outTime: a.outTime
     }));
-    await supabase.from('attendances').upsert(payload, { onConflict: 'attendanceId' });
-  } catch (e) {
-    console.warn('Sync attendances to Supabase error:', e);
+    const { error: upsertErr } = await supabase.from('attendances').upsert(payload, { onConflict: 'attendanceId' });
+    if (upsertErr) throw new Error(`Sync attendances upsert failed: ${upsertErr.message}`);
   }
 }
 
-export async function syncSalariesToSupabase(salaries: Salary[]) {
-  try {
-    if (salaries.length === 0) return;
+export async function reconcileSalariesToSupabase(salaries: Salary[]): Promise<void> {
+  const { data: remoteData, error: fetchErr } = await supabase.from('salaries').select('salaryId');
+  if (fetchErr) throw new Error(`Sync salaries fetch failed: ${fetchErr.message}`);
+
+  const remoteIds = (remoteData || []).map((r: any) => r.salaryId);
+  const currentIds = new Set(salaries.map(s => s.salaryId));
+  const idsToDelete = remoteIds.filter(id => !currentIds.has(id));
+
+  if (idsToDelete.length > 0) {
+    const { error: delErr } = await supabase.from('salaries').delete().in('salaryId', idsToDelete);
+    if (delErr) throw new Error(`Sync salaries delete failed: ${delErr.message}`);
+  }
+
+  if (salaries.length > 0) {
     const payload = salaries.map(s => ({
       salaryId: s.salaryId,
       workerId: s.workerId,
@@ -241,11 +489,18 @@ export async function syncSalariesToSupabase(salaries: Salary[]) {
       netSalary: s.netSalary,
       status: s.status
     }));
-    await supabase.from('salaries').upsert(payload, { onConflict: 'salaryId' });
-  } catch (e) {
-    console.warn('Sync salaries to Supabase error:', e);
+    const { error: upsertErr } = await supabase.from('salaries').upsert(payload, { onConflict: 'salaryId' });
+    if (upsertErr) throw new Error(`Sync salaries upsert failed: ${upsertErr.message}`);
   }
 }
+
+// Backwards compatibility alias functions for bulk sync
+export const syncWorkersToSupabase = reconcileWorkersToSupabase;
+export const syncMachinesToSupabase = reconcileMachinesToSupabase;
+export const syncDailyWorksToSupabase = reconcileDailyWorksToSupabase;
+export const syncAdminAttendancesToSupabase = reconcileAdminAttendancesToSupabase;
+export const syncAttendancesToSupabase = reconcileAttendancesToSupabase;
+export const syncSalariesToSupabase = reconcileSalariesToSupabase;
 
 export const SUPABASE_SETUP_SQL = `-- Run this in Supabase SQL Editor (https://supabase.com/dashboard/project/_/sql):
 

@@ -30,8 +30,14 @@ import {
   testSupabaseConnection, 
   fetchSupabaseWorkers, fetchSupabaseMachines, fetchSupabaseDailyWorks,
   fetchSupabaseAdminAttendances, fetchSupabaseAttendances, fetchSupabaseSalaries,
-  syncWorkersToSupabase, syncMachinesToSupabase, syncDailyWorksToSupabase,
-  syncAdminAttendancesToSupabase, syncAttendancesToSupabase, syncSalariesToSupabase,
+  createWorker, updateWorker, deleteWorker,
+  createMachine, updateMachine, deleteMachine,
+  createDailyWork, updateDailyWork, deleteDailyWork,
+  createAdminAttendance, updateAdminAttendance, deleteAdminAttendance,
+  createAttendance, updateAttendance, deleteAttendance,
+  createSalary, updateSalary, deleteSalary,
+  reconcileWorkersToSupabase, reconcileMachinesToSupabase, reconcileDailyWorksToSupabase,
+  reconcileAdminAttendancesToSupabase, reconcileAttendancesToSupabase, reconcileSalariesToSupabase,
   SUPABASE_SETUP_SQL, SUPABASE_URL
 } from './lib/supabase';
 
@@ -92,236 +98,263 @@ export default function App() {
   const [copiedSql, setCopiedSql] = useState<boolean>(false);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
 
-  // --- Load Data on Boot (From Supabase with LocalStorage fallback) ---
+  // --- Load Data on Boot (From Supabase PostgreSQL as Primary Source) ---
   useEffect(() => {
     async function initData() {
+      setSupabaseStatus('connecting');
+      setSupabaseMsg('Connecting to Supabase PostgreSQL...');
       const conn = await testSupabaseConnection();
-      if (conn.success) {
-        setSupabaseStatus('connected');
-        setSupabaseMsg('Connected & Syncing live with Supabase');
-      } else {
+
+      if (!conn.success) {
         setSupabaseStatus('error');
         setSupabaseMsg(conn.message);
+        return;
       }
 
-      // Try fetching from Supabase database tables
-      const [spWorkers, spMachines, spWorks, spAdminAtt, spAtt, spSalaries] = await Promise.all([
-        fetchSupabaseWorkers(),
-        fetchSupabaseMachines(),
-        fetchSupabaseDailyWorks(),
-        fetchSupabaseAdminAttendances(),
-        fetchSupabaseAttendances(),
-        fetchSupabaseSalaries()
-      ]);
+      setSupabaseStatus('connected');
+      setSupabaseMsg('Connected & Syncing live with Supabase PostgreSQL');
 
-      // Workers Sync
-      if (spWorkers && spWorkers.length > 0) {
-        setWorkers(spWorkers);
-        localStorage.setItem('texflow_workers', JSON.stringify(spWorkers));
-      } else {
-        const loadedWorkers = localStorage.getItem('texflow_workers');
-        const initial = loadedWorkers ? JSON.parse(loadedWorkers) : SEED_WORKERS;
-        setWorkers(initial);
-        localStorage.setItem('texflow_workers', JSON.stringify(initial));
-        if (conn.success) syncWorkersToSupabase(initial);
-      }
+      try {
+        const [spWorkers, spMachines, spWorks, spAdminAtt, spAtt, spSalaries] = await Promise.all([
+          fetchSupabaseWorkers(),
+          fetchSupabaseMachines(),
+          fetchSupabaseDailyWorks(),
+          fetchSupabaseAdminAttendances(),
+          fetchSupabaseAttendances(),
+          fetchSupabaseSalaries()
+        ]);
 
-      // Machines Sync
-      if (spMachines && spMachines.length > 0) {
-        setMachines(spMachines);
-        localStorage.setItem('texflow_machines', JSON.stringify(spMachines));
-      } else {
-        const loadedMachines = localStorage.getItem('texflow_machines');
-        const initial = loadedMachines ? JSON.parse(loadedMachines) : DEFAULT_MACHINES;
-        setMachines(initial);
-        localStorage.setItem('texflow_machines', JSON.stringify(initial));
-        if (conn.success) syncMachinesToSupabase(initial);
-      }
+        const totalCount = (spWorkers?.length || 0) + (spMachines?.length || 0) + 
+                           (spWorks?.length || 0) + (spAdminAtt?.length || 0) + 
+                           (spAtt?.length || 0) + (spSalaries?.length || 0);
 
-      // Daily Works Sync
-      if (spWorks && spWorks.length > 0) {
-        setDailyWorks(spWorks);
-        localStorage.setItem('texflow_daily_works', JSON.stringify(spWorks));
-      } else {
-        const loadedDailyWorks = localStorage.getItem('texflow_daily_works');
-        const initial = loadedDailyWorks ? JSON.parse(loadedDailyWorks) : SEED_DAILY_WORK;
-        setDailyWorks(initial);
-        localStorage.setItem('texflow_daily_works', JSON.stringify(initial));
-        if (conn.success) syncDailyWorksToSupabase(initial);
-      }
-
-      // Admin Attendance Sync
-      if (spAdminAtt && spAdminAtt.length > 0) {
-        setAdminAttendances(spAdminAtt);
-        localStorage.setItem('texflow_admin_attendances', JSON.stringify(spAdminAtt));
-      } else {
-        const loadedAdminAtt = localStorage.getItem('texflow_admin_attendances');
-        const initial = loadedAdminAtt ? JSON.parse(loadedAdminAtt) : SEED_ADMIN_ATTENDANCE;
-        setAdminAttendances(initial);
-        localStorage.setItem('texflow_admin_attendances', JSON.stringify(initial));
-        if (conn.success) syncAdminAttendancesToSupabase(initial);
-      }
-
-      // Loom Attendance Sync
-      if (spAtt && spAtt.length > 0) {
-        setAttendances(spAtt);
-        localStorage.setItem('texflow_attendances', JSON.stringify(spAtt));
-      } else {
-        const loadedAtt = localStorage.getItem('texflow_attendances');
-        const initial = loadedAtt ? JSON.parse(loadedAtt) : SEED_LOOM_ATTENDANCE;
-        setAttendances(initial);
-        localStorage.setItem('texflow_attendances', JSON.stringify(initial));
-        if (conn.success) syncAttendancesToSupabase(initial);
-      }
-
-      // Salaries Sync
-      if (spSalaries && spSalaries.length > 0) {
-        setSalaries(spSalaries);
-        localStorage.setItem('texflow_salaries', JSON.stringify(spSalaries));
-      } else {
-        const loadedSalaries = localStorage.getItem('texflow_salaries');
-        const initial = loadedSalaries ? JSON.parse(loadedSalaries) : SEED_SALARIES;
-        setSalaries(initial);
-        localStorage.setItem('texflow_salaries', JSON.stringify(initial));
-        if (conn.success) syncSalariesToSupabase(initial);
+        if (totalCount === 0) {
+          // Initialize empty Supabase PostgreSQL database with default seed records
+          await Promise.all([
+            reconcileWorkersToSupabase(SEED_WORKERS),
+            reconcileMachinesToSupabase(DEFAULT_MACHINES),
+            reconcileDailyWorksToSupabase(SEED_DAILY_WORK),
+            reconcileAdminAttendancesToSupabase(SEED_ADMIN_ATTENDANCE),
+            reconcileAttendancesToSupabase(SEED_LOOM_ATTENDANCE),
+            reconcileSalariesToSupabase(SEED_SALARIES)
+          ]);
+          setWorkers(SEED_WORKERS);
+          setMachines(DEFAULT_MACHINES);
+          setDailyWorks(SEED_DAILY_WORK);
+          setAdminAttendances(SEED_ADMIN_ATTENDANCE);
+          setAttendances(SEED_LOOM_ATTENDANCE);
+          setSalaries(SEED_SALARIES);
+        } else {
+          setWorkers(spWorkers || []);
+          setMachines(spMachines || []);
+          setDailyWorks(spWorks || []);
+          setAdminAttendances(spAdminAtt || []);
+          setAttendances(spAtt || []);
+          setSalaries(spSalaries || []);
+        }
+      } catch (err: any) {
+        setSupabaseStatus('error');
+        setSupabaseMsg(`Supabase PostgreSQL load error: ${err?.message || err}`);
       }
     }
 
     initData();
   }, []);
 
-  // --- State Synchronization Helpers (Updates local state & pushes to Supabase) ---
-  const saveWorkers = (newWorkers: Worker[]) => {
-    setWorkers(newWorkers);
-    localStorage.setItem('texflow_workers', JSON.stringify(newWorkers));
-    syncWorkersToSupabase(newWorkers);
-  };
-
-  const saveMachines = (newMachines: Machine[]) => {
-    setMachines(newMachines);
-    localStorage.setItem('texflow_machines', JSON.stringify(newMachines));
-    syncMachinesToSupabase(newMachines);
-  };
-
-  const saveDailyWorks = (newWorks: DailyWork[]) => {
-    setDailyWorks(newWorks);
-    localStorage.setItem('texflow_daily_works', JSON.stringify(newWorks));
-    syncDailyWorksToSupabase(newWorks);
-  };
-
-  const saveAdminAttendances = (newAdminAtt: AdminAttendance[]) => {
-    setAdminAttendances(newAdminAtt);
-    localStorage.setItem('texflow_admin_attendances', JSON.stringify(newAdminAtt));
-    syncAdminAttendancesToSupabase(newAdminAtt);
-  };
-
-  const saveAttendances = (newAtt: Attendance[]) => {
-    setAttendances(newAtt);
-    localStorage.setItem('texflow_attendances', JSON.stringify(newAtt));
-    syncAttendancesToSupabase(newAtt);
-  };
-
-  const saveSalaries = (newSalaries: Salary[]) => {
-    setSalaries(newSalaries);
-    localStorage.setItem('texflow_salaries', JSON.stringify(newSalaries));
-    syncSalariesToSupabase(newSalaries);
-  };
-
   const handleManualSyncAll = async () => {
     setIsSyncing(true);
-    await Promise.all([
-      syncWorkersToSupabase(workers),
-      syncMachinesToSupabase(machines),
-      syncDailyWorksToSupabase(dailyWorks),
-      syncAdminAttendancesToSupabase(adminAttendances),
-      syncAttendancesToSupabase(attendances),
-      syncSalariesToSupabase(salaries)
-    ]);
-    const conn = await testSupabaseConnection();
-    if (conn.success) {
-      setSupabaseStatus('connected');
-      setSupabaseMsg('Data synced to Supabase successfully!');
-    } else {
+    try {
+      await Promise.all([
+        reconcileWorkersToSupabase(workers),
+        reconcileMachinesToSupabase(machines),
+        reconcileDailyWorksToSupabase(dailyWorks),
+        reconcileAdminAttendancesToSupabase(adminAttendances),
+        reconcileAttendancesToSupabase(attendances),
+        reconcileSalariesToSupabase(salaries)
+      ]);
+      const conn = await testSupabaseConnection();
+      if (conn.success) {
+        setSupabaseStatus('connected');
+        setSupabaseMsg('Data reconciled and synced with Supabase successfully!');
+      } else {
+        setSupabaseStatus('error');
+        setSupabaseMsg(conn.message);
+      }
+    } catch (err: any) {
       setSupabaseStatus('error');
-      setSupabaseMsg(conn.message);
+      setSupabaseMsg(`Sync Error: ${err?.message || err}`);
+      alert(`Supabase Sync Error: ${err?.message || err}`);
+    } finally {
+      setIsSyncing(false);
     }
-    setIsSyncing(false);
   };
 
   // --- Worker Operations ---
-  const handleAddWorker = (newWorker: Worker) => {
-    saveWorkers([...workers, newWorker]);
+  const handleAddWorker = async (newWorker: Worker) => {
+    try {
+      await createWorker(newWorker);
+      setWorkers(prev => [...prev, newWorker]);
+    } catch (err: any) {
+      alert(`Supabase Error: ${err?.message || 'Failed to add worker'}`);
+    }
   };
 
-  const handleUpdateWorker = (updatedWorker: Worker) => {
-    saveWorkers(workers.map(w => w.workerId === updatedWorker.workerId ? updatedWorker : w));
+  const handleUpdateWorker = async (updatedWorker: Worker) => {
+    try {
+      await updateWorker(updatedWorker);
+      setWorkers(prev => prev.map(w => w.workerId === updatedWorker.workerId ? updatedWorker : w));
+    } catch (err: any) {
+      alert(`Supabase Error: ${err?.message || 'Failed to update worker'}`);
+    }
   };
 
-  const handleDeleteWorker = (workerId: string) => {
-    saveWorkers(workers.filter(w => w.workerId !== workerId));
-    saveDailyWorks(dailyWorks.filter(dw => dw.workerId !== workerId));
-    saveAdminAttendances(adminAttendances.filter(aa => aa.workerId !== workerId));
-    saveAttendances(attendances.filter(a => a.workerId !== workerId));
-    saveSalaries(salaries.filter(s => s.workerId !== workerId));
+  const handleDeleteWorker = async (workerId: string) => {
+    try {
+      await deleteWorker(workerId);
+      setWorkers(prev => prev.filter(w => w.workerId !== workerId));
+
+      // Clean up related records in daily_works, admin_attendances, attendances, salaries in Supabase
+      const worksToDelete = dailyWorks.filter(dw => dw.workerId === workerId);
+      for (const dw of worksToDelete) {
+        await deleteDailyWork(dw.workId).catch(() => {});
+      }
+      setDailyWorks(prev => prev.filter(dw => dw.workerId !== workerId));
+
+      const adminAttToDelete = adminAttendances.filter(aa => aa.workerId === workerId);
+      for (const aa of adminAttToDelete) {
+        await deleteAdminAttendance(aa.adminAttendanceId).catch(() => {});
+      }
+      setAdminAttendances(prev => prev.filter(aa => aa.workerId !== workerId));
+
+      const attToDelete = attendances.filter(a => a.workerId === workerId);
+      for (const a of attToDelete) {
+        await deleteAttendance(a.attendanceId).catch(() => {});
+      }
+      setAttendances(prev => prev.filter(a => a.workerId !== workerId));
+
+      const salariesToDelete = salaries.filter(s => s.workerId === workerId);
+      for (const s of salariesToDelete) {
+        await deleteSalary(s.salaryId).catch(() => {});
+      }
+      setSalaries(prev => prev.filter(s => s.workerId !== workerId));
+    } catch (err: any) {
+      alert(`Supabase Error: ${err?.message || 'Failed to delete worker'}`);
+    }
   };
 
   // --- Machine Operations ---
-  const handleToggleMachine = (machineId: string) => {
-    saveMachines(machines.map(m => m.machineId === machineId ? { ...m, isActive: !m.isActive } : m));
+  const handleToggleMachine = async (machineId: string) => {
+    const target = machines.find(m => m.machineId === machineId);
+    if (!target) return;
+    const updated = { ...target, isActive: !target.isActive };
+    try {
+      await updateMachine(updated);
+      setMachines(prev => prev.map(m => m.machineId === machineId ? updated : m));
+    } catch (err: any) {
+      alert(`Supabase Error: ${err?.message || 'Failed to update machine'}`);
+    }
   };
 
-  const handleAddMachine = (newMachine: Machine) => {
-    saveMachines([...machines, newMachine]);
+  const handleAddMachine = async (newMachine: Machine) => {
+    try {
+      await createMachine(newMachine);
+      setMachines(prev => [...prev, newMachine]);
+    } catch (err: any) {
+      alert(`Supabase Error: ${err?.message || 'Failed to add machine'}`);
+    }
   };
 
-  const handleDeleteMachine = (machineId: string) => {
-    saveMachines(machines.filter(m => m.machineId !== machineId));
+  const handleDeleteMachine = async (machineId: string) => {
+    try {
+      await deleteMachine(machineId);
+      setMachines(prev => prev.filter(m => m.machineId !== machineId));
+    } catch (err: any) {
+      alert(`Supabase Error: ${err?.message || 'Failed to delete machine'}`);
+    }
   };
 
   // --- Daily Work Operations ---
-  const handleAddDailyWork = (newWork: DailyWork) => {
-    saveDailyWorks([...dailyWorks, newWork]);
+  const handleAddDailyWork = async (newWork: DailyWork) => {
+    try {
+      await createDailyWork(newWork);
+      setDailyWorks(prev => [...prev, newWork]);
+    } catch (err: any) {
+      alert(`Supabase Error: ${err?.message || 'Failed to save daily work'}`);
+    }
   };
 
-  const handleDeleteDailyWork = (workId: string) => {
-    saveDailyWorks(dailyWorks.filter(dw => dw.workId !== workId));
+  const handleDeleteDailyWork = async (workId: string) => {
+    try {
+      await deleteDailyWork(workId);
+      setDailyWorks(prev => prev.filter(dw => dw.workId !== workId));
+    } catch (err: any) {
+      alert(`Supabase Error: ${err?.message || 'Failed to delete daily work'}`);
+    }
   };
 
   // --- Admin Attendance Operations ---
-  const handleAddAdminAttendance = (newAtt: AdminAttendance) => {
+  const handleAddAdminAttendance = async (newAtt: AdminAttendance) => {
     const exists = adminAttendances.some(a => a.adminAttendanceId === newAtt.adminAttendanceId);
-    if (exists) {
-      saveAdminAttendances(adminAttendances.map(a => a.adminAttendanceId === newAtt.adminAttendanceId ? newAtt : a));
-    } else {
-      saveAdminAttendances([...adminAttendances, newAtt]);
+    try {
+      if (exists) {
+        await updateAdminAttendance(newAtt);
+        setAdminAttendances(prev => prev.map(a => a.adminAttendanceId === newAtt.adminAttendanceId ? newAtt : a));
+      } else {
+        await createAdminAttendance(newAtt);
+        setAdminAttendances(prev => [...prev, newAtt]);
+      }
+    } catch (err: any) {
+      alert(`Supabase Error: ${err?.message || 'Failed to save admin attendance'}`);
     }
   };
 
-  const handleDeleteAdminAttendance = (id: string) => {
-    saveAdminAttendances(adminAttendances.filter(a => a.adminAttendanceId !== id));
+  const handleDeleteAdminAttendance = async (id: string) => {
+    try {
+      await deleteAdminAttendance(id);
+      setAdminAttendances(prev => prev.filter(a => a.adminAttendanceId !== id));
+    } catch (err: any) {
+      alert(`Supabase Error: ${err?.message || 'Failed to delete admin attendance'}`);
+    }
   };
 
   // --- Loom Attendance Operations ---
-  const handleAddAttendance = (newAtt: Attendance) => {
+  const handleAddAttendance = async (newAtt: Attendance) => {
     const exists = attendances.some(a => a.attendanceId === newAtt.attendanceId);
-    if (exists) {
-      saveAttendances(attendances.map(a => a.attendanceId === newAtt.attendanceId ? newAtt : a));
-    } else {
-      saveAttendances([...attendances, newAtt]);
+    try {
+      if (exists) {
+        await updateAttendance(newAtt);
+        setAttendances(prev => prev.map(a => a.attendanceId === newAtt.attendanceId ? newAtt : a));
+      } else {
+        await createAttendance(newAtt);
+        setAttendances(prev => [...prev, newAtt]);
+      }
+    } catch (err: any) {
+      alert(`Supabase Error: ${err?.message || 'Failed to save attendance'}`);
     }
   };
 
-  const handleDeleteAttendance = (id: string) => {
-    saveAttendances(attendances.filter(a => a.attendanceId !== id));
+  const handleDeleteAttendance = async (id: string) => {
+    try {
+      await deleteAttendance(id);
+      setAttendances(prev => prev.filter(a => a.attendanceId !== id));
+    } catch (err: any) {
+      alert(`Supabase Error: ${err?.message || 'Failed to delete attendance'}`);
+    }
   };
 
   // --- Salary Operations ---
-  const handleUpdateSalary = (updatedSalary: Salary) => {
+  const handleUpdateSalary = async (updatedSalary: Salary) => {
     const exists = salaries.some(s => s.salaryId === updatedSalary.salaryId);
-    if (exists) {
-      saveSalaries(salaries.map(s => s.salaryId === updatedSalary.salaryId ? updatedSalary : s));
-    } else {
-      saveSalaries([...salaries, updatedSalary]);
+    try {
+      if (exists) {
+        await updateSalary(updatedSalary);
+        setSalaries(prev => prev.map(s => s.salaryId === updatedSalary.salaryId ? updatedSalary : s));
+      } else {
+        await createSalary(updatedSalary);
+        setSalaries(prev => [...prev, updatedSalary]);
+      }
+    } catch (err: any) {
+      alert(`Supabase Error: ${err?.message || 'Failed to update salary'}`);
     }
   };
 
@@ -354,22 +387,42 @@ export default function App() {
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
       try {
         const imported = JSON.parse(event.target?.result as string);
         if (imported.workers && imported.machines && imported.dailyWorks) {
-          saveWorkers(imported.workers);
-          saveMachines(imported.machines);
-          saveDailyWorks(imported.dailyWorks);
-          saveAdminAttendances(imported.adminAttendances || []);
-          saveAttendances(imported.attendances || []);
-          saveSalaries(imported.salaries || []);
-          alert('Database restored successfully from file!');
+          setIsSyncing(true);
+          const impWorkers = imported.workers || [];
+          const impMachines = imported.machines || [];
+          const impDailyWorks = imported.dailyWorks || [];
+          const impAdminAtt = imported.adminAttendances || [];
+          const impAtt = imported.attendances || [];
+          const impSalaries = imported.salaries || [];
+
+          await Promise.all([
+            reconcileWorkersToSupabase(impWorkers),
+            reconcileMachinesToSupabase(impMachines),
+            reconcileDailyWorksToSupabase(impDailyWorks),
+            reconcileAdminAttendancesToSupabase(impAdminAtt),
+            reconcileAttendancesToSupabase(impAtt),
+            reconcileSalariesToSupabase(impSalaries)
+          ]);
+
+          setWorkers(impWorkers);
+          setMachines(impMachines);
+          setDailyWorks(impDailyWorks);
+          setAdminAttendances(impAdminAtt);
+          setAttendances(impAtt);
+          setSalaries(impSalaries);
+
+          alert('Database successfully restored and written to Supabase from backup!');
         } else {
           alert('Invalid backup file format. Core fields missing.');
         }
-      } catch (err) {
-        alert('Error parsing backup JSON file: ' + err);
+      } catch (err: any) {
+        alert('Error restoring backup to Supabase: ' + (err?.message || err));
+      } finally {
+        setIsSyncing(false);
       }
     };
     reader.readAsText(file);
@@ -379,14 +432,32 @@ export default function App() {
     setIsConfirmResetOpen(true);
   };
 
-  const executeResetToSeed = () => {
-    saveWorkers(SEED_WORKERS);
-    saveMachines(DEFAULT_MACHINES);
-    saveDailyWorks(SEED_DAILY_WORK);
-    saveAdminAttendances(SEED_ADMIN_ATTENDANCE);
-    saveAttendances(SEED_LOOM_ATTENDANCE);
-    saveSalaries(SEED_SALARIES);
-    setIsConfirmResetOpen(false);
+  const executeResetToSeed = async () => {
+    setIsSyncing(true);
+    try {
+      await Promise.all([
+        reconcileWorkersToSupabase(SEED_WORKERS),
+        reconcileMachinesToSupabase(DEFAULT_MACHINES),
+        reconcileDailyWorksToSupabase(SEED_DAILY_WORK),
+        reconcileAdminAttendancesToSupabase(SEED_ADMIN_ATTENDANCE),
+        reconcileAttendancesToSupabase(SEED_LOOM_ATTENDANCE),
+        reconcileSalariesToSupabase(SEED_SALARIES)
+      ]);
+
+      setWorkers(SEED_WORKERS);
+      setMachines(DEFAULT_MACHINES);
+      setDailyWorks(SEED_DAILY_WORK);
+      setAdminAttendances(SEED_ADMIN_ATTENDANCE);
+      setAttendances(SEED_LOOM_ATTENDANCE);
+      setSalaries(SEED_SALARIES);
+
+      alert('Database successfully reset to seed data in Supabase!');
+    } catch (err: any) {
+      alert('Error resetting database in Supabase: ' + (err?.message || err));
+    } finally {
+      setIsSyncing(false);
+      setIsConfirmResetOpen(false);
+    }
   };
 
   return (
