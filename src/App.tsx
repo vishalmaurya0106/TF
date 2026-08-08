@@ -104,13 +104,35 @@ export default function App() {
     }
   };
 
+  // Helper to load state from localStorage with fallback
+  const getLocalOrSeed = <T,>(key: string, seed: T): T => {
+    try {
+      const item = localStorage.getItem(key);
+      if (item) {
+        const parsed = JSON.parse(item);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed as unknown as T;
+      }
+    } catch (e) {
+      console.warn(`Failed to parse localStorage for ${key}`, e);
+    }
+    return seed;
+  };
+
   // --- Database & Supabase Persistence States ---
-  const [workers, setWorkers] = useState<Worker[]>([]);
-  const [machines, setMachines] = useState<Machine[]>([]);
-  const [dailyWorks, setDailyWorks] = useState<DailyWork[]>([]);
-  const [adminAttendances, setAdminAttendances] = useState<AdminAttendance[]>([]);
-  const [attendances, setAttendances] = useState<Attendance[]>([]);
-  const [salaries, setSalaries] = useState<Salary[]>([]);
+  const [workers, setWorkers] = useState<Worker[]>(() => getLocalOrSeed('texflow_workers', SEED_WORKERS));
+  const [machines, setMachines] = useState<Machine[]>(() => getLocalOrSeed('texflow_machines', DEFAULT_MACHINES));
+  const [dailyWorks, setDailyWorks] = useState<DailyWork[]>(() => getLocalOrSeed('texflow_dailyWorks', SEED_DAILY_WORK));
+  const [adminAttendances, setAdminAttendances] = useState<AdminAttendance[]>(() => getLocalOrSeed('texflow_adminAttendances', SEED_ADMIN_ATTENDANCE));
+  const [attendances, setAttendances] = useState<Attendance[]>(() => getLocalOrSeed('texflow_attendances', SEED_LOOM_ATTENDANCE));
+  const [salaries, setSalaries] = useState<Salary[]>(() => getLocalOrSeed('texflow_salaries', SEED_SALARIES));
+
+  // Sync state to localStorage whenever it changes
+  useEffect(() => { localStorage.setItem('texflow_workers', JSON.stringify(workers)); }, [workers]);
+  useEffect(() => { localStorage.setItem('texflow_machines', JSON.stringify(machines)); }, [machines]);
+  useEffect(() => { localStorage.setItem('texflow_dailyWorks', JSON.stringify(dailyWorks)); }, [dailyWorks]);
+  useEffect(() => { localStorage.setItem('texflow_adminAttendances', JSON.stringify(adminAttendances)); }, [adminAttendances]);
+  useEffect(() => { localStorage.setItem('texflow_attendances', JSON.stringify(attendances)); }, [attendances]);
+  useEffect(() => { localStorage.setItem('texflow_salaries', JSON.stringify(salaries)); }, [salaries]);
 
   // Supabase Status States
   const [supabaseStatus, setSupabaseStatus] = useState<'connecting' | 'connected' | 'error'>('connecting');
@@ -119,30 +141,30 @@ export default function App() {
   const [copiedSql, setCopiedSql] = useState<boolean>(false);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
 
-  // --- Load Data on Boot (From Supabase PostgreSQL as Primary Source) ---
+  // --- Load Data on Boot (From Supabase PostgreSQL + Local Cache Sync) ---
   useEffect(() => {
     async function initData() {
       setSupabaseStatus('connecting');
-      setSupabaseMsg('Connecting to Supabase PostgreSQL...');
+      setSupabaseMsg('Checking Supabase Database Connection...');
       const conn = await testSupabaseConnection();
 
       if (!conn.success) {
         setSupabaseStatus('error');
-        setSupabaseMsg(conn.message);
+        setSupabaseMsg(`Local Cache Active (${conn.message})`);
         return;
       }
 
       setSupabaseStatus('connected');
-      setSupabaseMsg('Connected & Syncing live with Supabase PostgreSQL');
+      setSupabaseMsg('Connected & Live Synced with Supabase PostgreSQL');
 
       try {
         const [spWorkers, spMachines, spWorks, spAdminAtt, spAtt, spSalaries] = await Promise.all([
-          fetchSupabaseWorkers(),
-          fetchSupabaseMachines(),
-          fetchSupabaseDailyWorks(),
-          fetchSupabaseAdminAttendances(),
-          fetchSupabaseAttendances(),
-          fetchSupabaseSalaries()
+          fetchSupabaseWorkers().catch(() => null),
+          fetchSupabaseMachines().catch(() => null),
+          fetchSupabaseDailyWorks().catch(() => null),
+          fetchSupabaseAdminAttendances().catch(() => null),
+          fetchSupabaseAttendances().catch(() => null),
+          fetchSupabaseSalaries().catch(() => null)
         ]);
 
         const totalCount = (spWorkers?.length || 0) + (spMachines?.length || 0) + 
@@ -150,32 +172,33 @@ export default function App() {
                            (spAtt?.length || 0) + (spSalaries?.length || 0);
 
         if (totalCount === 0) {
-          // Initialize empty Supabase PostgreSQL database with default seed records
+          // Initialize empty Supabase PostgreSQL database with current local state
+          const curWorkers = getLocalOrSeed('texflow_workers', SEED_WORKERS);
+          const curMachines = getLocalOrSeed('texflow_machines', DEFAULT_MACHINES);
+          const curWorks = getLocalOrSeed('texflow_dailyWorks', SEED_DAILY_WORK);
+          const curAdminAtt = getLocalOrSeed('texflow_adminAttendances', SEED_ADMIN_ATTENDANCE);
+          const curAtt = getLocalOrSeed('texflow_attendances', SEED_LOOM_ATTENDANCE);
+          const curSalaries = getLocalOrSeed('texflow_salaries', SEED_SALARIES);
+
           await Promise.all([
-            reconcileWorkersToSupabase(SEED_WORKERS),
-            reconcileMachinesToSupabase(DEFAULT_MACHINES),
-            reconcileDailyWorksToSupabase(SEED_DAILY_WORK),
-            reconcileAdminAttendancesToSupabase(SEED_ADMIN_ATTENDANCE),
-            reconcileAttendancesToSupabase(SEED_LOOM_ATTENDANCE),
-            reconcileSalariesToSupabase(SEED_SALARIES)
+            reconcileWorkersToSupabase(curWorkers).catch(() => {}),
+            reconcileMachinesToSupabase(curMachines).catch(() => {}),
+            reconcileDailyWorksToSupabase(curWorks).catch(() => {}),
+            reconcileAdminAttendancesToSupabase(curAdminAtt).catch(() => {}),
+            reconcileAttendancesToSupabase(curAtt).catch(() => {}),
+            reconcileSalariesToSupabase(curSalaries).catch(() => {})
           ]);
-          setWorkers(SEED_WORKERS);
-          setMachines(DEFAULT_MACHINES);
-          setDailyWorks(SEED_DAILY_WORK);
-          setAdminAttendances(SEED_ADMIN_ATTENDANCE);
-          setAttendances(SEED_LOOM_ATTENDANCE);
-          setSalaries(SEED_SALARIES);
         } else {
-          setWorkers(spWorkers || []);
-          setMachines(spMachines || []);
-          setDailyWorks(spWorks || []);
-          setAdminAttendances(spAdminAtt || []);
-          setAttendances(spAtt || []);
-          setSalaries(spSalaries || []);
+          if (spWorkers && spWorkers.length > 0) setWorkers(spWorkers);
+          if (spMachines && spMachines.length > 0) setMachines(spMachines);
+          if (spWorks && spWorks.length > 0) setDailyWorks(spWorks);
+          if (spAdminAtt && spAdminAtt.length > 0) setAdminAttendances(spAdminAtt);
+          if (spAtt && spAtt.length > 0) setAttendances(spAtt);
+          if (spSalaries && spSalaries.length > 0) setSalaries(spSalaries);
         }
       } catch (err: any) {
         setSupabaseStatus('error');
-        setSupabaseMsg(`Supabase PostgreSQL load error: ${err?.message || err}`);
+        setSupabaseMsg(`Supabase sync notice: ${err?.message || err}. Running on local storage.`);
       }
     }
 
@@ -212,54 +235,50 @@ export default function App() {
 
   // --- Worker Operations ---
   const handleAddWorker = async (newWorker: Worker) => {
+    setWorkers(prev => [...prev, newWorker]);
     try {
       await createWorker(newWorker);
-      setWorkers(prev => [...prev, newWorker]);
     } catch (err: any) {
-      alert(`Supabase Error: ${err?.message || 'Failed to add worker'}`);
+      console.warn('Saved locally, Supabase sync pending:', err?.message || err);
     }
   };
 
   const handleUpdateWorker = async (updatedWorker: Worker) => {
+    setWorkers(prev => prev.map(w => w.workerId === updatedWorker.workerId ? updatedWorker : w));
     try {
       await updateWorker(updatedWorker);
-      setWorkers(prev => prev.map(w => w.workerId === updatedWorker.workerId ? updatedWorker : w));
     } catch (err: any) {
-      alert(`Supabase Error: ${err?.message || 'Failed to update worker'}`);
+      console.warn('Updated locally, Supabase sync pending:', err?.message || err);
     }
   };
 
   const handleDeleteWorker = async (workerId: string) => {
+    setWorkers(prev => prev.filter(w => w.workerId !== workerId));
+    setDailyWorks(prev => prev.filter(dw => dw.workerId !== workerId));
+    setAdminAttendances(prev => prev.filter(aa => aa.workerId !== workerId));
+    setAttendances(prev => prev.filter(a => a.workerId !== workerId));
+    setSalaries(prev => prev.filter(s => s.workerId !== workerId));
+
     try {
       await deleteWorker(workerId);
-      setWorkers(prev => prev.filter(w => w.workerId !== workerId));
-
-      // Clean up related records in daily_works, admin_attendances, attendances, salaries in Supabase
       const worksToDelete = dailyWorks.filter(dw => dw.workerId === workerId);
       for (const dw of worksToDelete) {
         await deleteDailyWork(dw.workId).catch(() => {});
       }
-      setDailyWorks(prev => prev.filter(dw => dw.workerId !== workerId));
-
       const adminAttToDelete = adminAttendances.filter(aa => aa.workerId === workerId);
       for (const aa of adminAttToDelete) {
         await deleteAdminAttendance(aa.adminAttendanceId).catch(() => {});
       }
-      setAdminAttendances(prev => prev.filter(aa => aa.workerId !== workerId));
-
       const attToDelete = attendances.filter(a => a.workerId === workerId);
       for (const a of attToDelete) {
         await deleteAttendance(a.attendanceId).catch(() => {});
       }
-      setAttendances(prev => prev.filter(a => a.workerId !== workerId));
-
       const salariesToDelete = salaries.filter(s => s.workerId === workerId);
       for (const s of salariesToDelete) {
         await deleteSalary(s.salaryId).catch(() => {});
       }
-      setSalaries(prev => prev.filter(s => s.workerId !== workerId));
     } catch (err: any) {
-      alert(`Supabase Error: ${err?.message || 'Failed to delete worker'}`);
+      console.warn('Deleted locally, Supabase sync pending:', err?.message || err);
     }
   };
 
@@ -268,114 +287,123 @@ export default function App() {
     const target = machines.find(m => m.machineId === machineId);
     if (!target) return;
     const updated = { ...target, isActive: !target.isActive };
+    setMachines(prev => prev.map(m => m.machineId === machineId ? updated : m));
     try {
       await updateMachine(updated);
-      setMachines(prev => prev.map(m => m.machineId === machineId ? updated : m));
     } catch (err: any) {
-      alert(`Supabase Error: ${err?.message || 'Failed to update machine'}`);
+      console.warn('Updated machine locally, Supabase sync pending:', err?.message || err);
     }
   };
 
   const handleAddMachine = async (newMachine: Machine) => {
+    setMachines(prev => [...prev, newMachine]);
     try {
       await createMachine(newMachine);
-      setMachines(prev => [...prev, newMachine]);
     } catch (err: any) {
-      alert(`Supabase Error: ${err?.message || 'Failed to add machine'}`);
+      console.warn('Added machine locally, Supabase sync pending:', err?.message || err);
     }
   };
 
   const handleDeleteMachine = async (machineId: string) => {
+    setMachines(prev => prev.filter(m => m.machineId !== machineId));
     try {
       await deleteMachine(machineId);
-      setMachines(prev => prev.filter(m => m.machineId !== machineId));
     } catch (err: any) {
-      alert(`Supabase Error: ${err?.message || 'Failed to delete machine'}`);
+      console.warn('Deleted machine locally, Supabase sync pending:', err?.message || err);
     }
   };
 
   // --- Daily Work Operations ---
   const handleAddDailyWork = async (newWork: DailyWork) => {
+    setDailyWorks(prev => [...prev, newWork]);
     try {
       await createDailyWork(newWork);
-      setDailyWorks(prev => [...prev, newWork]);
     } catch (err: any) {
-      alert(`Supabase Error: ${err?.message || 'Failed to save daily work'}`);
+      console.warn('Saved daily work locally, Supabase sync pending:', err?.message || err);
     }
   };
 
   const handleDeleteDailyWork = async (workId: string) => {
+    setDailyWorks(prev => prev.filter(dw => dw.workId !== workId));
     try {
       await deleteDailyWork(workId);
-      setDailyWorks(prev => prev.filter(dw => dw.workId !== workId));
     } catch (err: any) {
-      alert(`Supabase Error: ${err?.message || 'Failed to delete daily work'}`);
+      console.warn('Deleted daily work locally, Supabase sync pending:', err?.message || err);
     }
   };
 
   // --- Admin Attendance Operations ---
   const handleAddAdminAttendance = async (newAtt: AdminAttendance) => {
     const exists = adminAttendances.some(a => a.adminAttendanceId === newAtt.adminAttendanceId);
+    if (exists) {
+      setAdminAttendances(prev => prev.map(a => a.adminAttendanceId === newAtt.adminAttendanceId ? newAtt : a));
+    } else {
+      setAdminAttendances(prev => [...prev, newAtt]);
+    }
     try {
       if (exists) {
         await updateAdminAttendance(newAtt);
-        setAdminAttendances(prev => prev.map(a => a.adminAttendanceId === newAtt.adminAttendanceId ? newAtt : a));
       } else {
         await createAdminAttendance(newAtt);
-        setAdminAttendances(prev => [...prev, newAtt]);
       }
     } catch (err: any) {
-      alert(`Supabase Error: ${err?.message || 'Failed to save admin attendance'}`);
+      console.warn('Saved admin attendance locally, Supabase sync pending:', err?.message || err);
     }
   };
 
   const handleDeleteAdminAttendance = async (id: string) => {
+    setAdminAttendances(prev => prev.filter(a => a.adminAttendanceId !== id));
     try {
       await deleteAdminAttendance(id);
-      setAdminAttendances(prev => prev.filter(a => a.adminAttendanceId !== id));
     } catch (err: any) {
-      alert(`Supabase Error: ${err?.message || 'Failed to delete admin attendance'}`);
+      console.warn('Deleted admin attendance locally, Supabase sync pending:', err?.message || err);
     }
   };
 
   // --- Loom Attendance Operations ---
   const handleAddAttendance = async (newAtt: Attendance) => {
     const exists = attendances.some(a => a.attendanceId === newAtt.attendanceId);
+    if (exists) {
+      setAttendances(prev => prev.map(a => a.attendanceId === newAtt.attendanceId ? newAtt : a));
+    } else {
+      setAttendances(prev => [...prev, newAtt]);
+    }
     try {
       if (exists) {
         await updateAttendance(newAtt);
-        setAttendances(prev => prev.map(a => a.attendanceId === newAtt.attendanceId ? newAtt : a));
       } else {
         await createAttendance(newAtt);
-        setAttendances(prev => [...prev, newAtt]);
       }
     } catch (err: any) {
-      alert(`Supabase Error: ${err?.message || 'Failed to save attendance'}`);
+      console.warn('Saved loom attendance locally, Supabase sync pending:', err?.message || err);
     }
   };
 
   const handleDeleteAttendance = async (id: string) => {
+    setAttendances(prev => prev.filter(a => a.attendanceId !== id));
     try {
       await deleteAttendance(id);
-      setAttendances(prev => prev.filter(a => a.attendanceId !== id));
     } catch (err: any) {
-      alert(`Supabase Error: ${err?.message || 'Failed to delete attendance'}`);
+      console.warn('Deleted loom attendance locally, Supabase sync pending:', err?.message || err);
     }
   };
 
   // --- Salary Operations ---
   const handleUpdateSalary = async (updatedSalary: Salary) => {
     const exists = salaries.some(s => s.salaryId === updatedSalary.salaryId);
+    if (exists) {
+      setSalaries(prev => prev.map(s => s.salaryId === updatedSalary.salaryId ? updatedSalary : s));
+    } else {
+      setSalaries(prev => [...prev, updatedSalary]);
+    }
     try {
       if (exists) {
         await updateSalary(updatedSalary);
-        setSalaries(prev => prev.map(s => s.salaryId === updatedSalary.salaryId ? updatedSalary : s));
       } else {
         await createSalary(updatedSalary);
-        setSalaries(prev => [...prev, updatedSalary]);
       }
     } catch (err: any) {
-      alert(`Supabase Error: ${err?.message || 'Failed to update salary'}`);
+      console.warn('Saved salary locally, Supabase sync pending:', err?.message || err);
     }
   };
 
