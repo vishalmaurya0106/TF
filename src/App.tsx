@@ -49,20 +49,16 @@ export default function App() {
   const [isConfirmResetOpen, setIsConfirmResetOpen] = useState(false);
 
   // --- Authentication States ---
-  const [currentSession, setCurrentSession] = useState<UserSession | null>(() => {
-    try {
-      const saved = localStorage.getItem('texflow_auth_session');
-      return saved ? JSON.parse(saved) : null;
-    } catch {
-      return null;
-    }
-  });
-  const [isLoginModalOpen, setIsLoginModalOpen] = useState<boolean>(!currentSession);
+  // In-memory session state: page refresh or browser close auto-logouts the user
+  const [currentSession, setCurrentSession] = useState<UserSession | null>(null);
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState<boolean>(true);
 
   const isAdmin = currentSession?.role === 'admin';
 
   const handleLogout = () => {
-    localStorage.removeItem('texflow_auth_session');
+    try {
+      localStorage.removeItem('texflow_auth_session');
+    } catch {}
     setCurrentSession(null);
     setIsLoginModalOpen(true);
   };
@@ -813,7 +809,6 @@ export default function App() {
         }}
         onLoginSuccess={(session) => {
           setCurrentSession(session);
-          localStorage.setItem('texflow_auth_session', JSON.stringify(session));
           setIsLoginModalOpen(false);
         }}
       />
