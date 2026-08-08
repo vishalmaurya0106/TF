@@ -9,7 +9,7 @@ import { formatCurrency, formatDate, naturalSortWorkers } from '../utils';
 import ConfirmModal from './ConfirmModal';
 import { 
   Building, UserCheck, Calendar, ClipboardCheck, 
-  Trash2, Plus, Info, Check, Sparkles 
+  Trash2, Plus, Info, Check, Sparkles, Save 
 } from 'lucide-react';
 
 interface AdminAttendanceRegisterProps {
@@ -33,36 +33,56 @@ export default function AdminAttendanceRegister({
 
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [saveAllSuccess, setSaveAllSuccess] = useState(false);
+
+  // Staged selection before clicking save
+  const [stagedStatuses, setStagedStatuses] = useState<Record<string, AttendanceStatus>>({});
 
   // Confirmation Modal State
   const [isConfirmDeleteOpen, setIsConfirmDeleteOpen] = useState(false);
   const [deleteAdminAttendanceId, setDeleteAdminAttendanceId] = useState('');
   const [deleteAdminAttendanceMessage, setDeleteAdminAttendanceMessage] = useState('');
 
-  // Get attendance status for a worker on the selected date
-  const getAttendanceForDate = (workerId: string) => {
+  // Get saved attendance status for a worker on the selected date
+  const getSavedAttendance = (workerId: string) => {
     return adminAttendances.find(a => a.workerId === workerId && a.date === selectedDate);
   };
 
-  const handleSetAttendance = (worker: Worker, status: AttendanceStatus) => {
-    // Show saving feedback
-    setSavingId(worker.workerId);
-    
-    // Auto-calculate daily wage
+  // Synchronize staged selections whenever date or saved records change
+  useEffect(() => {
+    const newStaged: Record<string, AttendanceStatus> = {};
+    adminStaff.forEach(admin => {
+      const rec = adminAttendances.find(a => a.workerId === admin.workerId && a.date === selectedDate);
+      newStaged[admin.workerId] = rec ? rec.status : 'Present';
+    });
+    setStagedStatuses(newStaged);
+  }, [selectedDate, adminAttendances, workers]);
+
+  const handleSelectStatus = (workerId: string, status: AttendanceStatus) => {
+    setStagedStatuses(prev => ({
+      ...prev,
+      [workerId]: status
+    }));
+  };
+
+  const handleSaveSingleAdmin = (admin: Worker) => {
+    const status = stagedStatuses[admin.workerId] || 'Present';
+    setSavingId(admin.workerId);
+
     let calculatedWage = 0;
     if (status === 'Present') {
-      calculatedWage = worker.perMachineRate;
+      calculatedWage = admin.perMachineRate;
     } else if (status === 'Half-Day') {
-      calculatedWage = worker.perMachineRate / 2;
+      calculatedWage = admin.perMachineRate / 2;
     } else if (status === 'Absent') {
       calculatedWage = 0;
     }
 
-    const matchedId = adminAttendances.find(a => a.workerId === worker.workerId && a.date === selectedDate)?.adminAttendanceId;
+    const matchedId = adminAttendances.find(a => a.workerId === admin.workerId && a.date === selectedDate)?.adminAttendanceId;
 
     const payload: AdminAttendance = {
-      adminAttendanceId: matchedId || `AA-${Date.now()}-${worker.workerId}`,
-      workerId: worker.workerId,
+      adminAttendanceId: matchedId || `AA-${Date.now()}-${admin.workerId}`,
+      workerId: admin.workerId,
       date: selectedDate,
       status,
       calculatedWage: parseFloat(calculatedWage.toFixed(2))
@@ -72,7 +92,38 @@ export default function AdminAttendanceRegister({
 
     setTimeout(() => {
       setSavingId(null);
-    }, 400);
+    }, 500);
+  };
+
+  const handleSaveAllAdmins = () => {
+    adminStaff.forEach(admin => {
+      const status = stagedStatuses[admin.workerId] || 'Present';
+      let calculatedWage = 0;
+      if (status === 'Present') {
+        calculatedWage = admin.perMachineRate;
+      } else if (status === 'Half-Day') {
+        calculatedWage = admin.perMachineRate / 2;
+      } else if (status === 'Absent') {
+        calculatedWage = 0;
+      }
+
+      const matchedId = adminAttendances.find(a => a.workerId === admin.workerId && a.date === selectedDate)?.adminAttendanceId;
+
+      const payload: AdminAttendance = {
+        adminAttendanceId: matchedId || `AA-${Date.now()}-${admin.workerId}`,
+        workerId: admin.workerId,
+        date: selectedDate,
+        status,
+        calculatedWage: parseFloat(calculatedWage.toFixed(2))
+      };
+
+      onAddAdminAttendance(payload);
+    });
+
+    setSaveAllSuccess(true);
+    setTimeout(() => {
+      setSaveAllSuccess(false);
+    }, 1500);
   };
 
   // Sorted admins list by Employee ID (Natural Sort)
@@ -100,16 +151,30 @@ export default function AdminAttendanceRegister({
               </div>
             </div>
 
-            {/* Date Select */}
-            <div className="flex items-center gap-2.5 bg-slate-50 border px-3 py-2 rounded-xl">
-              <Calendar className="h-4.5 w-4.5 text-slate-400" />
-              <input
-                id="admin-att-date-input"
-                type="date"
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                className="bg-transparent border-none outline-none text-sm font-bold text-slate-800"
-              />
+            {/* Date Select & Batch Save */}
+            <div className="flex flex-wrap items-center gap-2.5">
+              <div className="flex items-center gap-2 bg-slate-50 border px-3 py-2 rounded-xl">
+                <Calendar className="h-4.5 w-4.5 text-slate-400" />
+                <input
+                  id="admin-att-date-input"
+                  type="date"
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                  className="bg-transparent border-none outline-none text-sm font-bold text-slate-800"
+                />
+              </div>
+
+              {sortedAdmins.length > 0 && (
+                <button
+                  type="button"
+                  id="save-all-admin-attendance-btn"
+                  onClick={handleSaveAllAdmins}
+                  className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer"
+                >
+                  <Save className="h-4 w-4" />
+                  <span>{saveAllSuccess ? 'All Saved ✓' : 'Save All'}</span>
+                </button>
+              )}
             </div>
           </div>
 
@@ -121,7 +186,7 @@ export default function AdminAttendanceRegister({
               Present = Full standard daily rate (<span className="font-mono font-semibold">100%</span>). 
               Half-Day = Half standard daily rate (<span className="font-mono font-semibold">50%</span>). 
               Absent = No wage (<span className="font-mono font-semibold">₹0.00</span>). 
-              Values update in the database automatically.
+              Select status and click <span className="font-bold text-emerald-700">Save</span>.
             </div>
           </div>
 
@@ -134,10 +199,14 @@ export default function AdminAttendanceRegister({
               </div>
             ) : (
               sortedAdmins.map((admin) => {
-                const record = getAttendanceForDate(admin.workerId);
-                const currentStatus = record?.status;
-                const earnedWage = record?.calculatedWage ?? 0;
+                const record = getSavedAttendance(admin.workerId);
+                const currentStatus = stagedStatuses[admin.workerId] || 'Present';
                 const isSaving = savingId === admin.workerId;
+                const isModified = !record || record.status !== currentStatus;
+
+                let projectedWage = admin.perMachineRate;
+                if (currentStatus === 'Half-Day') projectedWage = admin.perMachineRate / 2;
+                if (currentStatus === 'Absent') projectedWage = 0;
 
                 return (
                   <div 
@@ -162,10 +231,10 @@ export default function AdminAttendanceRegister({
 
                     {/* Attendance Status Buttons */}
                     <div className="flex flex-wrap items-center gap-2">
-                      {/* Segmented controls */}
                       <button
+                        type="button"
                         id={`btn-present-${admin.workerId}`}
-                        onClick={() => handleSetAttendance(admin, 'Present')}
+                        onClick={() => handleSelectStatus(admin.workerId, 'Present')}
                         className={`px-3.5 py-1.5 rounded-lg text-xs font-bold border transition-all flex items-center gap-1 cursor-pointer ${
                           currentStatus === 'Present'
                             ? 'bg-emerald-600 text-white border-emerald-700 shadow-sm shadow-emerald-500/10'
@@ -177,8 +246,9 @@ export default function AdminAttendanceRegister({
                       </button>
 
                       <button
+                        type="button"
                         id={`btn-half-${admin.workerId}`}
-                        onClick={() => handleSetAttendance(admin, 'Half-Day')}
+                        onClick={() => handleSelectStatus(admin.workerId, 'Half-Day')}
                         className={`px-3.5 py-1.5 rounded-lg text-xs font-bold border transition-all flex items-center gap-1 cursor-pointer ${
                           currentStatus === 'Half-Day'
                             ? 'bg-amber-500 text-white border-amber-600 shadow-sm shadow-amber-500/10'
@@ -190,8 +260,9 @@ export default function AdminAttendanceRegister({
                       </button>
 
                       <button
+                        type="button"
                         id={`btn-absent-${admin.workerId}`}
-                        onClick={() => handleSetAttendance(admin, 'Absent')}
+                        onClick={() => handleSelectStatus(admin.workerId, 'Absent')}
                         className={`px-3.5 py-1.5 rounded-lg text-xs font-bold border transition-all flex items-center gap-1 cursor-pointer ${
                           currentStatus === 'Absent'
                             ? 'bg-red-500 text-white border-red-600 shadow-sm shadow-red-500/10'
@@ -203,19 +274,33 @@ export default function AdminAttendanceRegister({
                       </button>
                     </div>
 
-                    {/* Day's wage & status indicator */}
-                    <div className="text-right sm:text-right flex items-center gap-3 w-full sm:w-auto border-t sm:border-t-0 pt-2 sm:pt-0 justify-between sm:justify-end">
-                      <span className="text-xs text-slate-400 font-bold block sm:hidden">DAY'S WAGE</span>
-                      <div className="flex items-center gap-2">
-                        {isSaving && (
-                          <span className="text-[10px] text-emerald-500 font-bold flex items-center gap-0.5 animate-pulse bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100">
-                            <Sparkles className="h-2.5 w-2.5" /> Saved
-                          </span>
-                        )}
-                        <span className={`font-mono font-bold text-sm ${record ? 'text-slate-900' : 'text-slate-300'}`}>
-                          {record ? formatCurrency(earnedWage) : formatCurrency(0)}
+                    {/* Day's wage & Save Button */}
+                    <div className="flex items-center gap-3">
+                      <span className="font-mono font-bold text-sm text-slate-900">
+                        {formatCurrency(projectedWage)}
+                      </span>
+
+                      <button
+                        type="button"
+                        id={`btn-save-admin-${admin.workerId}`}
+                        onClick={() => handleSaveSingleAdmin(admin)}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer shadow-2xs ${
+                          isSaving
+                            ? 'bg-emerald-700 text-white'
+                            : isModified
+                            ? 'bg-emerald-600 hover:bg-emerald-700 text-white ring-2 ring-emerald-400/30'
+                            : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
+                        }`}
+                      >
+                        <Save className="h-3.5 w-3.5" />
+                        <span>{isSaving ? 'Saving...' : 'Save'}</span>
+                      </button>
+
+                      {isSaving && (
+                        <span className="text-[10px] text-emerald-600 font-bold flex items-center gap-0.5 animate-pulse bg-emerald-50 px-2 py-1 rounded-md border border-emerald-200">
+                          <Sparkles className="h-2.5 w-2.5" /> Saved
                         </span>
-                      </div>
+                      )}
                     </div>
 
                   </div>

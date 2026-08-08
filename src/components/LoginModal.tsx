@@ -41,16 +41,22 @@ export default function LoginModal({
     e.preventDefault();
     setErrorMsg('');
 
-    const cleanUser = username.trim();
-    const cleanPass = password.trim();
+    const cleanUser = username.trim().toUpperCase();
+    const cleanPass = password.trim().toUpperCase();
 
     if (!cleanUser || !cleanPass) {
       setErrorMsg('Please enter Admin ID and Password.');
       return;
     }
 
+    // Prevent Staff credentials in Admin mode
+    if (cleanUser === 'STAFF' || cleanPass === 'STAFF') {
+      setErrorMsg('Staff credentials (STAFF) cannot be used for Admin Login! Please switch to Staff / User tab.');
+      return;
+    }
+
     // Admin authentication check (ID: ADMIN, Password: ADMIN)
-    if (cleanUser.toUpperCase() === 'ADMIN' && cleanPass.toUpperCase() === 'ADMIN') {
+    if (cleanUser === 'ADMIN' && cleanPass === 'ADMIN') {
       const session: UserSession = {
         role: 'admin',
         username: 'ADMIN',
@@ -67,21 +73,32 @@ export default function LoginModal({
     e.preventDefault();
     setErrorMsg('');
 
-    const cleanStaffUser = staffUsername.trim();
-    const cleanStaffPass = staffPassword.trim();
+    const cleanStaffUser = staffUsername.trim().toUpperCase();
+    const cleanStaffPass = staffPassword.trim().toUpperCase();
 
     if (!cleanStaffUser || !cleanStaffPass) {
       setErrorMsg('Please enter Staff User ID and Password.');
       return;
     }
 
-    const session: UserSession = {
-      role: 'staff',
-      username: cleanStaffUser.toUpperCase(),
-      displayName: cleanStaffUser,
-      loggedInAt: new Date().toISOString()
-    };
-    onLoginSuccess(session);
+    // Prevent Admin credentials in Staff mode
+    if (cleanStaffUser === 'ADMIN' || cleanStaffPass === 'ADMIN') {
+      setErrorMsg('Admin credentials (ADMIN) cannot be used for Staff Login! Please switch to Admin Login tab.');
+      return;
+    }
+
+    // Staff authentication check (ID: STAFF, Password: STAFF)
+    if (cleanStaffUser === 'STAFF' && cleanStaffPass === 'STAFF') {
+      const session: UserSession = {
+        role: 'staff',
+        username: 'STAFF',
+        displayName: 'Staff User',
+        loggedInAt: new Date().toISOString()
+      };
+      onLoginSuccess(session);
+    } else {
+      setErrorMsg('Invalid Credentials! For Staff access, User ID is STAFF and Password is STAFF.');
+    }
   };
 
   return (
@@ -134,7 +151,6 @@ export default function LoginModal({
           >
             <ShieldCheck className="h-4 w-4 text-indigo-600" />
             <span>Admin Login</span>
-            <span className="text-[10px] bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded-full font-extrabold">Full Access</span>
           </button>
 
           <button
@@ -151,7 +167,6 @@ export default function LoginModal({
           >
             <User className="h-4 w-4 text-slate-500" />
             <span>Staff / User</span>
-            <span className="text-[10px] bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded-full font-extrabold">No Delete</span>
           </button>
         </div>
 
@@ -271,7 +286,7 @@ export default function LoginModal({
                 className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-3 px-4 rounded-xl shadow-md hover:shadow-slate-900/20 transition-all flex items-center justify-center gap-2 text-sm cursor-pointer mt-2"
               >
                 <User className="h-4 w-4 text-amber-400" />
-                <span>Log In as Staff (Read/Write)</span>
+                <span>Log In as Staff</span>
                 <ArrowRight className="h-4 w-4" />
               </button>
             </form>

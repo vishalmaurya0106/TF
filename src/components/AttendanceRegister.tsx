@@ -9,7 +9,7 @@ import { formatDate, naturalSortWorkers } from '../utils';
 import ConfirmModal from './ConfirmModal';
 import { 
   ClipboardList, Clock, Calendar, Check, Sparkles, 
-  UserCheck, Trash2, ShieldAlert, ArrowRight 
+  UserCheck, Trash2, ShieldAlert, ArrowRight, Save
 } from 'lucide-react';
 
 interface AttendanceRegisterProps {
@@ -33,41 +33,120 @@ export default function AttendanceRegister({
 
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [saveAllSuccess, setSaveAllSuccess] = useState(false);
+
+  // Staged selection before user clicks Save button
+  const [stagedSelections, setStagedSelections] = useState<Record<string, { status: AttendanceStatus; inTime: string; outTime: string }>>({});
 
   // Confirmation Modal State
   const [isConfirmDeleteOpen, setIsConfirmDeleteOpen] = useState(false);
   const [deleteAttendanceId, setDeleteAttendanceId] = useState('');
   const [deleteAttendanceMessage, setDeleteAttendanceMessage] = useState('');
 
-  // Get attendance record for selected date
-  const getRecord = (workerId: string) => {
+  // Get saved attendance record for selected date
+  const getSavedRecord = (workerId: string) => {
     return attendances.find(a => a.workerId === workerId && a.date === selectedDate);
   };
 
-  const handleUpdateRecord = (
-    workerId: string, 
-    status: AttendanceStatus, 
-    inTime: string = "08:30", 
-    outTime: string = "18:00"
-  ) => {
-    setSavingId(workerId);
+  // Synchronize staged selection whenever date or saved attendances change
+  useEffect(() => {
+    const newStaged: Record<string, { status: AttendanceStatus; inTime: string; outTime: string }> = {};
+    loomOperators.forEach(op => {
+      const rec = attendances.find(a => a.workerId === op.workerId && a.date === selectedDate);
+      if (rec) {
+        newStaged[op.workerId] = {
+          status: rec.status,
+          inTime: rec.inTime || "08:30",
+          outTime: rec.outTime || "18:00"
+        };
+      } else {
+        newStaged[op.workerId] = {
+          status: 'Present',
+          inTime: "08:30",
+          outTime: "18:00"
+        };
+      }
+    });
+    setStagedSelections(newStaged);
+  }, [selectedDate, attendances, workers]);
 
-    const existingRecord = getRecord(workerId);
-    
+  // Update staged state without immediately persisting
+  const handleSelectStatus = (workerId: string, status: AttendanceStatus) => {
+    setStagedSelections(prev => {
+      const current = prev[workerId] || { status: 'Present', inTime: '08:30', outTime: '18:00' };
+      return {
+        ...prev,
+        [workerId]: {
+          ...current,
+          status,
+          inTime: status === 'Absent' ? '' : (current.inTime || '08:30'),
+          outTime: status === 'Absent' ? '' : (current.outTime || '18:00')
+        }
+      };
+    });
+  };
+
+  const handleSelectTimes = (workerId: string, inTime: string, outTime: string) => {
+    setStagedSelections(prev => {
+      const current = prev[workerId] || { status: 'Present', inTime: '08:30', outTime: '18:00' };
+      return {
+        ...prev,
+        [workerId]: {
+          ...current,
+          inTime,
+          outTime
+        }
+      };
+    });
+  };
+
+  // Explicit single row Save handler
+  const handleSaveSingleRecord = (workerId: string) => {
+    const staged = stagedSelections[workerId];
+    if (!staged) return;
+
+    setSavingId(workerId);
+    const existingRecord = getSavedRecord(workerId);
+
     const payload: Attendance = {
       attendanceId: existingRecord?.attendanceId || `LA-${Date.now()}-${workerId}`,
       workerId,
       date: selectedDate,
-      status,
-      inTime: status === 'Present' || status === 'Half-Day' ? inTime : '',
-      outTime: status === 'Present' || status === 'Half-Day' ? outTime : ''
+      status: staged.status,
+      inTime: staged.status === 'Present' || staged.status === 'Half-Day' ? (staged.inTime || '08:30') : '',
+      outTime: staged.status === 'Present' || staged.status === 'Half-Day' ? (staged.outTime || '18:00') : ''
     };
 
     onAddAttendance(payload);
 
     setTimeout(() => {
       setSavingId(null);
-    }, 400);
+    }, 500);
+  };
+
+  // Explicit Save All handler
+  const handleSaveAllRecords = () => {
+    loomOperators.forEach(op => {
+      const staged = stagedSelections[op.workerId];
+      if (!staged) return;
+
+      const existingRecord = getSavedRecord(op.workerId);
+      const payload: Attendance = {
+        attendanceId: existingRecord?.attendanceId || `LA-${Date.now()}-${op.workerId}`,
+        workerId: op.workerId,
+        date: selectedDate,
+        status: staged.status,
+        inTime: staged.status === 'Present' || staged.status === 'Half-Day' ? (staged.inTime || '08:30') : '',
+        outTime: staged.status === 'Present' || staged.status === 'Half-Day' ? (staged.outTime || '18:00') : ''
+      };
+
+      onAddAttendance(payload);
+    });
+
+    setSaveAllSuccess(true);
+    setTimeout(() => {
+      setSaveAllSuccess(false);
+    }, 1500);
   };
 
   const sortedOperators = naturalSortWorkers(loomOperators);
@@ -88,20 +167,34 @@ export default function AttendanceRegister({
               </div>
               <div>
                 <h2 id="loom-att-title" className="text-xl font-bold text-slate-900">Loom Operator shift register</h2>
-                <p className="text-sm text-slate-500 font-medium">Log shift attendance and exact In/Out operational timings</p>
+                <p className="text-sm text-slate-500 font-medium">Select attendance status and click Save to record</p>
               </div>
             </div>
 
-            {/* Date */}
-            <div className="flex items-center gap-2.5 bg-slate-50 border px-3 py-2 rounded-xl">
-              <Calendar className="h-4.5 w-4.5 text-slate-400" />
-              <input
-                id="loom-att-date-input"
-                type="date"
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                className="bg-transparent border-none outline-none text-sm font-bold text-slate-800"
-              />
+            {/* Date and Batch Save */}
+            <div className="flex flex-wrap items-center gap-2.5">
+              <div className="flex items-center gap-2 bg-slate-50 border px-3 py-2 rounded-xl">
+                <Calendar className="h-4.5 w-4.5 text-slate-400" />
+                <input
+                  id="loom-att-date-input"
+                  type="date"
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                  className="bg-transparent border-none outline-none text-sm font-bold text-slate-800"
+                />
+              </div>
+
+              {sortedOperators.length > 0 && (
+                <button
+                  type="button"
+                  id="save-all-loom-attendance-btn"
+                  onClick={handleSaveAllRecords}
+                  className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer"
+                >
+                  <Save className="h-4 w-4" />
+                  <span>{saveAllSuccess ? 'All Saved ✓' : 'Save All'}</span>
+                </button>
+              )}
             </div>
           </div>
 
@@ -114,11 +207,15 @@ export default function AttendanceRegister({
               </div>
             ) : (
               sortedOperators.map((operator) => {
-                const rec = getRecord(operator.workerId);
-                const currentStatus = rec?.status;
-                const currentIn = rec?.inTime || "08:30";
-                const currentOut = rec?.outTime || "18:00";
+                const rec = getSavedRecord(operator.workerId);
+                const staged = stagedSelections[operator.workerId] || { status: 'Present', inTime: '08:30', outTime: '18:00' };
+                const currentStatus = staged.status;
+                const currentIn = staged.inTime || "08:30";
+                const currentOut = staged.outTime || "18:00";
                 const isSaving = savingId === operator.workerId;
+
+                // Check if current staged values differ from saved record
+                const isModified = !rec || rec.status !== currentStatus || rec.inTime !== currentIn || rec.outTime !== currentOut;
 
                 return (
                   <div 
@@ -141,12 +238,13 @@ export default function AttendanceRegister({
                     </div>
 
                     {/* Status & Timing inputs */}
-                    <div className="flex flex-wrap sm:flex-nowrap items-center gap-4 w-full sm:w-auto">
+                    <div className="flex flex-wrap sm:flex-nowrap items-center gap-3 w-full sm:w-auto">
                       {/* Segmented Status Selector */}
                       <div className="flex items-center gap-1.5">
                         <button
+                          type="button"
                           id={`btn-loom-present-${operator.workerId}`}
-                          onClick={() => handleUpdateRecord(operator.workerId, 'Present', currentIn, currentOut)}
+                          onClick={() => handleSelectStatus(operator.workerId, 'Present')}
                           className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
                             currentStatus === 'Present'
                               ? 'bg-indigo-600 text-white border-indigo-700 shadow-sm'
@@ -156,8 +254,9 @@ export default function AttendanceRegister({
                           Present
                         </button>
                         <button
+                          type="button"
                           id={`btn-loom-half-${operator.workerId}`}
-                          onClick={() => handleUpdateRecord(operator.workerId, 'Half-Day', currentIn, currentOut)}
+                          onClick={() => handleSelectStatus(operator.workerId, 'Half-Day')}
                           className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
                             currentStatus === 'Half-Day'
                               ? 'bg-amber-500 text-white border-amber-600 shadow-sm'
@@ -167,8 +266,9 @@ export default function AttendanceRegister({
                           Half-Day
                         </button>
                         <button
+                          type="button"
                           id={`btn-loom-absent-${operator.workerId}`}
-                          onClick={() => handleUpdateRecord(operator.workerId, 'Absent', '', '')}
+                          onClick={() => handleSelectStatus(operator.workerId, 'Absent')}
                           className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
                             currentStatus === 'Absent'
                               ? 'bg-red-500 text-white border-red-600 shadow-sm'
@@ -181,12 +281,12 @@ export default function AttendanceRegister({
 
                       {/* Timings (Visible only if Present / Half-Day) */}
                       {(currentStatus === 'Present' || currentStatus === 'Half-Day') && (
-                        <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1">
+                        <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1">
                           <input
                             id={`in-time-${operator.workerId}`}
                             type="time"
                             value={currentIn}
-                            onChange={(e) => handleUpdateRecord(operator.workerId, currentStatus, e.target.value, currentOut)}
+                            onChange={(e) => handleSelectTimes(operator.workerId, e.target.value, currentOut)}
                             className="bg-transparent text-xs font-mono font-bold text-slate-800 border-none outline-none"
                           />
                           <ArrowRight className="h-3 w-3 text-slate-400" />
@@ -194,26 +294,42 @@ export default function AttendanceRegister({
                             id={`out-time-${operator.workerId}`}
                             type="time"
                             value={currentOut}
-                            onChange={(e) => handleUpdateRecord(operator.workerId, currentStatus, currentIn, e.target.value)}
+                            onChange={(e) => handleSelectTimes(operator.workerId, currentIn, e.target.value)}
                             className="bg-transparent text-xs font-mono font-bold text-slate-800 border-none outline-none"
                           />
                         </div>
                       )}
                     </div>
 
-                    {/* Saving Feedback */}
-                    <div className="flex items-center gap-1.5">
+                    {/* Explicit Save Button & Status Feedback */}
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        id={`btn-save-loom-${operator.workerId}`}
+                        onClick={() => handleSaveSingleRecord(operator.workerId)}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer shadow-2xs ${
+                          isSaving
+                            ? 'bg-emerald-700 text-white'
+                            : isModified
+                            ? 'bg-emerald-600 hover:bg-emerald-700 text-white ring-2 ring-emerald-400/30'
+                            : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
+                        }`}
+                      >
+                        <Save className="h-3.5 w-3.5" />
+                        <span>{isSaving ? 'Saving...' : 'Save'}</span>
+                      </button>
+
                       {isSaving && (
-                        <span className="text-[10px] text-emerald-500 font-bold flex items-center gap-0.5 animate-pulse bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100">
+                        <span className="text-[10px] text-emerald-600 font-bold flex items-center gap-0.5 animate-pulse bg-emerald-50 px-2 py-1 rounded-md border border-emerald-200">
                           <Sparkles className="h-2.5 w-2.5" /> Saved
                         </span>
                       )}
-                      {!rec && (
-                        <span className="text-[11px] text-slate-300 italic">No entry today</span>
+                      {!rec && !isSaving && (
+                        <span className="text-[10px] text-slate-400 italic">Unsaved</span>
                       )}
-                      {rec && !isSaving && (
-                        <span className="text-[11px] text-slate-400 font-bold flex items-center gap-0.5 bg-slate-100 px-2.5 py-0.5 rounded-md">
-                          Recorded
+                      {rec && !isSaving && !isModified && (
+                        <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                          Saved
                         </span>
                       )}
                     </div>
@@ -242,11 +358,10 @@ export default function AttendanceRegister({
               uniqueDates.map(dateStr => {
                 const dateRecords = attendances.filter(a => a.date === dateStr);
                 
-                // Grouping is done by date, and sorted within date by Natural Sort of workerId
                 const recordsWithOperators = dateRecords.map(a => {
                   return {
                     ...a,
-                    workerId: a.workerId // needed for naturalSortWorkers interface
+                    workerId: a.workerId
                   };
                 });
 
@@ -331,3 +446,4 @@ export default function AttendanceRegister({
     </div>
   );
 }
+

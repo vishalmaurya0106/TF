@@ -607,27 +607,6 @@ export default function App() {
               </button>
             );
           })}
-          {/* Settings Menu Button in Navigation */}
-          <button
-            type="button"
-            id="open-settings-nav-btn"
-            onClick={() => {
-              setIsSettingsModalOpen(true);
-              setIsMobileMenuOpen(false);
-            }}
-            className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium text-slate-400 hover:bg-slate-800 hover:text-white transition-all cursor-pointer"
-          >
-            <div className="flex items-center gap-3">
-              <Settings className="h-4.5 w-4.5 text-indigo-400" />
-              <span>Settings Menu (सेटिंग्स)</span>
-            </div>
-            {supabaseStatus === 'connected' && (
-              <span className="flex h-2 w-2 relative">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-              </span>
-            )}
-          </button>
         </nav>
 
         {/* Sidebar Footer - Settings & Controls Quick Button */}
@@ -943,7 +922,7 @@ export default function App() {
                 <Laptop className="h-5.5 w-5.5 text-indigo-600" />
                 <div>
                   <h3 className="font-bold text-slate-900 text-base">Install TexFlow Windows App</h3>
-                  <p className="text-[11px] text-indigo-600 font-bold">कंप्यूटर में ऐप इंस्टॉल करने का आसान तरीका</p>
+                  <p className="text-[11px] text-indigo-600 font-bold">Easy way to install app on desktop</p>
                 </div>
               </div>
               <button 
@@ -960,10 +939,10 @@ export default function App() {
               {/* Critical Notice: Standalone link */}
               <div className="p-4 bg-amber-50 border border-amber-100 rounded-xl space-y-2">
                 <p className="text-xs font-extrabold text-amber-800 uppercase tracking-wider flex items-center gap-1.5">
-                  ⚠️ Step 1: Open in New Tab (न्यू टैब में खोलें)
+                  ⚠️ Step 1: Open in New Tab
                 </p>
                 <p className="text-xs text-amber-950 font-semibold leading-relaxed">
-                  If you are viewing this app inside the Google AI Studio preview window, please click the button below to open it in a full new tab first (क्योंकि प्रीव्यू फ्रेम के अंदर से डायरेक्ट इंस्टॉल नहीं हो सकता)।
+                  If you are viewing this app inside the Google AI Studio preview window, please click the button below to open it in a full new tab first.
                 </p>
                 <a
                   href="https://ais-pre-565kt2wlwierafhv7gmnps-1026129663129.asia-southeast1.run.app"
@@ -971,7 +950,7 @@ export default function App() {
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-extrabold rounded-lg text-xs shadow-xs transition-colors mt-1"
                 >
-                  Open in New Tab (न्यू टैब में खोलें)
+                  Open in New Tab
                   <ArrowUpRight className="h-3.5 w-3.5" />
                 </a>
               </div>
@@ -979,7 +958,7 @@ export default function App() {
               {/* Install guide */}
               <div className="space-y-4">
                 <p className="text-xs font-extrabold text-slate-600 uppercase tracking-wider">
-                  Step 2: Installation in Browser (ब्राउज़र से इंस्टॉल करें)
+                  Step 2: Installation in Browser
                 </p>
 
                 {/* Google Chrome */}
@@ -988,12 +967,12 @@ export default function App() {
                     <Chrome className="h-5 w-5" />
                   </div>
                   <div className="space-y-1">
-                    <h4 className="text-xs font-bold text-slate-800">Google Chrome में कैसे इंस्टॉल करें:</h4>
+                    <h4 className="text-xs font-bold text-slate-800">How to install in Google Chrome:</h4>
                     <p className="text-[11px] text-slate-500 leading-relaxed font-medium">
-                      1. एड्रेस बार (Address Bar) के दाईं ओर देखें, आपको एक <strong>कम्प्यूटर और नीचे तीर (↓) का निशान</strong> दिखेगा, उस पर क्लिक करें।
+                      1. Look at the right side of the address bar for the <strong>Install / Computer with down arrow icon</strong> and click it.
                     </p>
                     <p className="text-[11px] text-slate-500 leading-relaxed font-medium">
-                      2. या फिर दाईं तरफ <strong>3 डॉट्स (...)</strong> पर क्लिक करें, फिर <strong>"Cast, save and share"</strong> में जाएं, और <strong>"Install page as app"</strong> पर क्लिक करें।
+                      2. Or click the <strong>3 dots (...)</strong> on the top right, go to <strong>"Cast, save and share"</strong>, and click <strong>"Install page as app"</strong>.
                     </p>
                   </div>
                 </div>
@@ -1004,12 +983,12 @@ export default function App() {
                     <Monitor className="h-5 w-5" />
                   </div>
                   <div className="space-y-1">
-                    <h4 className="text-xs font-bold text-slate-800">Microsoft Edge में कैसे इंस्टॉल करें:</h4>
+                    <h4 className="text-xs font-bold text-slate-800">How to install in Microsoft Edge:</h4>
                     <p className="text-[11px] text-slate-500 leading-relaxed font-medium">
-                      1. ऊपर एड्रेस बार में दाईं ओर <strong>"App available" (चार बक्से वाला प्लस आइकन)</strong> दिखेगा, उस पर क्लिक करें।
+                      1. Click the <strong>"App available" (four boxes with plus icon)</strong> on the right of the address bar.
                     </p>
                     <p className="text-[11px] text-slate-500 leading-relaxed font-medium">
-                      2. या फिर ऊपर <strong>3 डॉट्स (...)</strong> पर क्लिक करें, <strong>"Apps"</strong> में जाएं, और <strong>"Install this site as an app"</strong> पर क्लिक करें।
+                      2. Or click the <strong>3 dots (...)</strong> on top, go to <strong>"Apps"</strong>, and click <strong>"Install this site as an app"</strong>.
                     </p>
                   </div>
                 </div>
@@ -1017,11 +996,11 @@ export default function App() {
 
               {/* What happens next */}
               <div className="p-3.5 bg-indigo-50 rounded-xl text-indigo-950 space-y-1 text-xs">
-                <p className="font-bold">Benefits of Desktop App (इंस्टॉल करने के फायदे):</p>
+                <p className="font-bold">Benefits of Desktop App:</p>
                 <ul className="list-disc pl-4 space-y-0.5 text-[11px] font-medium text-indigo-900 leading-relaxed">
-                  <li>Creates a <strong>Standalone Window</strong> (बिना ब्राउज़र के अलग से ऐप खुलेगा)</li>
-                  <li>Adds a <strong>Desktop Shortcut</strong> & Start Menu icon (डेस्कटॉप पर शॉर्टकट आ जाएगा)</li>
-                  <li>Works super fast and is offline-ready! (बहुत तेज चलता है)</li>
+                  <li>Creates a <strong>Standalone Window</strong></li>
+                  <li>Adds a <strong>Desktop Shortcut</strong> & Start Menu icon</li>
+                  <li>Works super fast and is offline-ready!</li>
                 </ul>
               </div>
             </div>
@@ -1070,7 +1049,7 @@ export default function App() {
                   Target Project: <code className="bg-emerald-100 px-1.5 py-0.5 rounded font-mono text-[10px]">{SUPABASE_URL}</code>
                 </p>
                 <p className="text-[11px] text-emerald-800 leading-relaxed font-medium mt-1">
-                  अगर आपके Supabase प्रोजेक्ट में अभी तक टेबल्स (Tables) नहीं बनी हैं, तो नीचे दिए गए SQL कोड को कॉपी करके Supabase SQL Editor में पेस्ट करके 'Run' पर क्लिक करें। इससे सारे Tables और Columns अपने-आप बन जाएंगे!
+                  If database tables are not created yet in your Supabase project, copy the SQL code below, paste it into the Supabase SQL Editor, and click 'Run'.
                 </p>
               </div>
 
@@ -1096,7 +1075,7 @@ export default function App() {
               </div>
 
               <div className="space-y-1.5 text-xs text-slate-600">
-                <p className="font-bold text-slate-800">Quick Steps in Supabase Dashboard (कदम):</p>
+                <p className="font-bold text-slate-800">Quick Steps in Supabase Dashboard:</p>
                 <ol className="list-decimal pl-5 space-y-1 text-[11px] font-medium text-slate-600">
                   <li>Open your Supabase Dashboard: <a href="https://supabase.com/dashboard" target="_blank" rel="noreferrer" className="text-indigo-600 underline font-bold">supabase.com/dashboard</a></li>
                   <li>Go to <strong>SQL Editor</strong> on the left sidebar menu.</li>
