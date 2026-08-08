@@ -23,8 +23,17 @@ import ConfirmModal from './components/ConfirmModal';
 import { 
   Cpu, Users, Cpu as LoomIcon, Clock, Building, FileText, 
   Settings, Download, Upload, Trash2, ShieldCheck, Factory,
-  Menu, X, Monitor, HelpCircle, Laptop, Chrome, ArrowUpRight
+  Menu, X, Monitor, HelpCircle, Laptop, Chrome, ArrowUpRight,
+  Database, RefreshCw, CheckCircle2, AlertCircle, Copy, Check
 } from 'lucide-react';
+import { 
+  testSupabaseConnection, 
+  fetchSupabaseWorkers, fetchSupabaseMachines, fetchSupabaseDailyWorks,
+  fetchSupabaseAdminAttendances, fetchSupabaseAttendances, fetchSupabaseSalaries,
+  syncWorkersToSupabase, syncMachinesToSupabase, syncDailyWorksToSupabase,
+  syncAdminAttendancesToSupabase, syncAttendancesToSupabase, syncSalariesToSupabase,
+  SUPABASE_SETUP_SQL, SUPABASE_URL
+} from './lib/supabase';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -68,7 +77,7 @@ export default function App() {
     }
   };
 
-  // --- Database Persistence States ---
+  // --- Database & Supabase Persistence States ---
   const [workers, setWorkers] = useState<Worker[]>([]);
   const [machines, setMachines] = useState<Machine[]>([]);
   const [dailyWorks, setDailyWorks] = useState<DailyWork[]>([]);
@@ -76,81 +85,167 @@ export default function App() {
   const [attendances, setAttendances] = useState<Attendance[]>([]);
   const [salaries, setSalaries] = useState<Salary[]>([]);
 
-  // --- Load Data on Boot ---
+  // Supabase Status States
+  const [supabaseStatus, setSupabaseStatus] = useState<'connecting' | 'connected' | 'error'>('connecting');
+  const [supabaseMsg, setSupabaseMsg] = useState<string>('Connecting to Supabase...');
+  const [showSqlModal, setShowSqlModal] = useState<boolean>(false);
+  const [copiedSql, setCopiedSql] = useState<boolean>(false);
+  const [isSyncing, setIsSyncing] = useState<boolean>(false);
+
+  // --- Load Data on Boot (From Supabase with LocalStorage fallback) ---
   useEffect(() => {
-    const loadedWorkers = localStorage.getItem('texflow_workers');
-    const loadedMachines = localStorage.getItem('texflow_machines');
-    const loadedDailyWorks = localStorage.getItem('texflow_daily_works');
-    const loadedAdminAtt = localStorage.getItem('texflow_admin_attendances');
-    const loadedAtt = localStorage.getItem('texflow_attendances');
-    const loadedSalaries = localStorage.getItem('texflow_salaries');
+    async function initData() {
+      const conn = await testSupabaseConnection();
+      if (conn.success) {
+        setSupabaseStatus('connected');
+        setSupabaseMsg('Connected & Syncing live with Supabase');
+      } else {
+        setSupabaseStatus('error');
+        setSupabaseMsg(conn.message);
+      }
 
-    if (loadedWorkers) setWorkers(JSON.parse(loadedWorkers));
-    else {
-      setWorkers(SEED_WORKERS);
-      localStorage.setItem('texflow_workers', JSON.stringify(SEED_WORKERS));
+      // Try fetching from Supabase database tables
+      const [spWorkers, spMachines, spWorks, spAdminAtt, spAtt, spSalaries] = await Promise.all([
+        fetchSupabaseWorkers(),
+        fetchSupabaseMachines(),
+        fetchSupabaseDailyWorks(),
+        fetchSupabaseAdminAttendances(),
+        fetchSupabaseAttendances(),
+        fetchSupabaseSalaries()
+      ]);
+
+      // Workers Sync
+      if (spWorkers && spWorkers.length > 0) {
+        setWorkers(spWorkers);
+        localStorage.setItem('texflow_workers', JSON.stringify(spWorkers));
+      } else {
+        const loadedWorkers = localStorage.getItem('texflow_workers');
+        const initial = loadedWorkers ? JSON.parse(loadedWorkers) : SEED_WORKERS;
+        setWorkers(initial);
+        localStorage.setItem('texflow_workers', JSON.stringify(initial));
+        if (conn.success) syncWorkersToSupabase(initial);
+      }
+
+      // Machines Sync
+      if (spMachines && spMachines.length > 0) {
+        setMachines(spMachines);
+        localStorage.setItem('texflow_machines', JSON.stringify(spMachines));
+      } else {
+        const loadedMachines = localStorage.getItem('texflow_machines');
+        const initial = loadedMachines ? JSON.parse(loadedMachines) : DEFAULT_MACHINES;
+        setMachines(initial);
+        localStorage.setItem('texflow_machines', JSON.stringify(initial));
+        if (conn.success) syncMachinesToSupabase(initial);
+      }
+
+      // Daily Works Sync
+      if (spWorks && spWorks.length > 0) {
+        setDailyWorks(spWorks);
+        localStorage.setItem('texflow_daily_works', JSON.stringify(spWorks));
+      } else {
+        const loadedDailyWorks = localStorage.getItem('texflow_daily_works');
+        const initial = loadedDailyWorks ? JSON.parse(loadedDailyWorks) : SEED_DAILY_WORK;
+        setDailyWorks(initial);
+        localStorage.setItem('texflow_daily_works', JSON.stringify(initial));
+        if (conn.success) syncDailyWorksToSupabase(initial);
+      }
+
+      // Admin Attendance Sync
+      if (spAdminAtt && spAdminAtt.length > 0) {
+        setAdminAttendances(spAdminAtt);
+        localStorage.setItem('texflow_admin_attendances', JSON.stringify(spAdminAtt));
+      } else {
+        const loadedAdminAtt = localStorage.getItem('texflow_admin_attendances');
+        const initial = loadedAdminAtt ? JSON.parse(loadedAdminAtt) : SEED_ADMIN_ATTENDANCE;
+        setAdminAttendances(initial);
+        localStorage.setItem('texflow_admin_attendances', JSON.stringify(initial));
+        if (conn.success) syncAdminAttendancesToSupabase(initial);
+      }
+
+      // Loom Attendance Sync
+      if (spAtt && spAtt.length > 0) {
+        setAttendances(spAtt);
+        localStorage.setItem('texflow_attendances', JSON.stringify(spAtt));
+      } else {
+        const loadedAtt = localStorage.getItem('texflow_attendances');
+        const initial = loadedAtt ? JSON.parse(loadedAtt) : SEED_LOOM_ATTENDANCE;
+        setAttendances(initial);
+        localStorage.setItem('texflow_attendances', JSON.stringify(initial));
+        if (conn.success) syncAttendancesToSupabase(initial);
+      }
+
+      // Salaries Sync
+      if (spSalaries && spSalaries.length > 0) {
+        setSalaries(spSalaries);
+        localStorage.setItem('texflow_salaries', JSON.stringify(spSalaries));
+      } else {
+        const loadedSalaries = localStorage.getItem('texflow_salaries');
+        const initial = loadedSalaries ? JSON.parse(loadedSalaries) : SEED_SALARIES;
+        setSalaries(initial);
+        localStorage.setItem('texflow_salaries', JSON.stringify(initial));
+        if (conn.success) syncSalariesToSupabase(initial);
+      }
     }
 
-    if (loadedMachines) setMachines(JSON.parse(loadedMachines));
-    else {
-      setMachines(DEFAULT_MACHINES);
-      localStorage.setItem('texflow_machines', JSON.stringify(DEFAULT_MACHINES));
-    }
-
-    if (loadedDailyWorks) setDailyWorks(JSON.parse(loadedDailyWorks));
-    else {
-      setDailyWorks(SEED_DAILY_WORK);
-      localStorage.setItem('texflow_daily_works', JSON.stringify(SEED_DAILY_WORK));
-    }
-
-    if (loadedAdminAtt) setAdminAttendances(JSON.parse(loadedAdminAtt));
-    else {
-      setAdminAttendances(SEED_ADMIN_ATTENDANCE);
-      localStorage.setItem('texflow_admin_attendances', JSON.stringify(SEED_ADMIN_ATTENDANCE));
-    }
-
-    if (loadedAtt) setAttendances(JSON.parse(loadedAtt));
-    else {
-      setAttendances(SEED_LOOM_ATTENDANCE);
-      localStorage.setItem('texflow_attendances', JSON.stringify(SEED_LOOM_ATTENDANCE));
-    }
-
-    if (loadedSalaries) setSalaries(JSON.parse(loadedSalaries));
-    else {
-      setSalaries(SEED_SALARIES);
-      localStorage.setItem('texflow_salaries', JSON.stringify(SEED_SALARIES));
-    }
+    initData();
   }, []);
 
-  // --- State Synchronization Helpers ---
+  // --- State Synchronization Helpers (Updates local state & pushes to Supabase) ---
   const saveWorkers = (newWorkers: Worker[]) => {
     setWorkers(newWorkers);
     localStorage.setItem('texflow_workers', JSON.stringify(newWorkers));
+    syncWorkersToSupabase(newWorkers);
   };
 
   const saveMachines = (newMachines: Machine[]) => {
     setMachines(newMachines);
     localStorage.setItem('texflow_machines', JSON.stringify(newMachines));
+    syncMachinesToSupabase(newMachines);
   };
 
   const saveDailyWorks = (newWorks: DailyWork[]) => {
     setDailyWorks(newWorks);
     localStorage.setItem('texflow_daily_works', JSON.stringify(newWorks));
+    syncDailyWorksToSupabase(newWorks);
   };
 
   const saveAdminAttendances = (newAdminAtt: AdminAttendance[]) => {
     setAdminAttendances(newAdminAtt);
     localStorage.setItem('texflow_admin_attendances', JSON.stringify(newAdminAtt));
+    syncAdminAttendancesToSupabase(newAdminAtt);
   };
 
   const saveAttendances = (newAtt: Attendance[]) => {
     setAttendances(newAtt);
     localStorage.setItem('texflow_attendances', JSON.stringify(newAtt));
+    syncAttendancesToSupabase(newAtt);
   };
 
   const saveSalaries = (newSalaries: Salary[]) => {
     setSalaries(newSalaries);
     localStorage.setItem('texflow_salaries', JSON.stringify(newSalaries));
+    syncSalariesToSupabase(newSalaries);
+  };
+
+  const handleManualSyncAll = async () => {
+    setIsSyncing(true);
+    await Promise.all([
+      syncWorkersToSupabase(workers),
+      syncMachinesToSupabase(machines),
+      syncDailyWorksToSupabase(dailyWorks),
+      syncAdminAttendancesToSupabase(adminAttendances),
+      syncAttendancesToSupabase(attendances),
+      syncSalariesToSupabase(salaries)
+    ]);
+    const conn = await testSupabaseConnection();
+    if (conn.success) {
+      setSupabaseStatus('connected');
+      setSupabaseMsg('Data synced to Supabase successfully!');
+    } else {
+      setSupabaseStatus('error');
+      setSupabaseMsg(conn.message);
+    }
+    setIsSyncing(false);
   };
 
   // --- Worker Operations ---
@@ -358,6 +453,64 @@ export default function App() {
             );
           })}
         </nav>
+
+        {/* Supabase Live Cloud Database Status Panel */}
+        <div className="p-4 border-t border-slate-800 bg-emerald-950/20 space-y-2.5">
+          <div className="flex items-center justify-between">
+            <p className="text-[10px] font-extrabold text-emerald-400 uppercase tracking-widest flex items-center gap-1.5">
+              <Database className="h-3.5 w-3.5" /> Supabase Live DB
+            </p>
+            <div className="flex items-center gap-1">
+              {supabaseStatus === 'connected' && (
+                <span className="flex h-2 w-2 relative">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                </span>
+              )}
+              {supabaseStatus === 'error' && (
+                <span className="inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+              )}
+            </div>
+          </div>
+
+          <div className="text-[11px] font-medium text-slate-300 bg-slate-900/90 p-2.5 rounded-lg border border-slate-800 flex items-start gap-2">
+            {supabaseStatus === 'connected' ? (
+              <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0 mt-0.5" />
+            ) : supabaseStatus === 'connecting' ? (
+              <RefreshCw className="h-4 w-4 text-indigo-400 animate-spin shrink-0 mt-0.5" />
+            ) : (
+              <AlertCircle className="h-4 w-4 text-amber-400 shrink-0 mt-0.5" />
+            )}
+            <div className="overflow-hidden">
+              <p className="font-bold text-slate-200 text-[11px] truncate">
+                {supabaseStatus === 'connected' ? 'Supabase Connected' : supabaseStatus === 'connecting' ? 'Connecting...' : 'Database Setup Required'}
+              </p>
+              <p className="text-[10px] text-slate-400 leading-tight line-clamp-2 mt-0.5">
+                {supabaseMsg}
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={handleManualSyncAll}
+              disabled={isSyncing}
+              className="flex items-center justify-center gap-1 px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-700 text-white rounded-lg text-xs font-bold transition-all cursor-pointer shadow-xs"
+            >
+              <RefreshCw className={`h-3 w-3 ${isSyncing ? 'animate-spin' : ''}`} />
+              {isSyncing ? 'Syncing...' : 'Sync Data'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowSqlModal(true)}
+              className="flex items-center justify-center gap-1 px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-emerald-900/50 rounded-lg text-xs font-bold transition-all cursor-pointer"
+            >
+              <Database className="h-3 w-3" />
+              SQL Setup
+            </button>
+          </div>
+        </div>
 
         {/* PWA Desktop App Installer Panel */}
         <div className="p-4 border-t border-slate-800 bg-indigo-950/25 space-y-2">
@@ -600,6 +753,85 @@ export default function App() {
                 className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold rounded-xl text-xs transition-colors cursor-pointer shadow-sm"
               >
                 Got It, Thanks!
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Supabase SQL Setup Modal */}
+      {showSqlModal && (
+        <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-xs flex justify-center items-center p-4 z-50 animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-2xl overflow-hidden animate-in zoom-in-95 duration-150">
+            <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-900 text-white">
+              <div className="flex items-center gap-2.5">
+                <Database className="h-5.5 w-5.5 text-emerald-400" />
+                <div>
+                  <h3 className="font-bold text-white text-base">Supabase Automatic Table Generator</h3>
+                  <p className="text-[11px] text-emerald-400 font-semibold">Copy and run this in Supabase SQL Editor</p>
+                </div>
+              </div>
+              <button 
+                type="button" 
+                onClick={() => setShowSqlModal(false)}
+                className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-all cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+              <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl space-y-1 text-xs text-emerald-950">
+                <p className="font-extrabold flex items-center gap-1.5 text-emerald-900">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600" /> Supabase Connection Configured!
+                </p>
+                <p className="font-medium text-[11px] text-emerald-900">
+                  Target Project: <code className="bg-emerald-100 px-1.5 py-0.5 rounded font-mono text-[10px]">{SUPABASE_URL}</code>
+                </p>
+                <p className="text-[11px] text-emerald-800 leading-relaxed font-medium mt-1">
+                  अगर आपके Supabase प्रोजेक्ट में अभी तक टेबल्स (Tables) नहीं बनी हैं, तो नीचे दिए गए SQL कोड को कॉपी करके Supabase SQL Editor में पेस्ट करके 'Run' पर क्लिक करें। इससे सारे Tables और Columns अपने-आप बन जाएंगे!
+                </p>
+              </div>
+
+              <div className="relative">
+                <div className="flex justify-between items-center bg-slate-800 px-4 py-2 rounded-t-xl text-slate-300 text-xs font-mono">
+                  <span>Supabase_Schema_Tables.sql</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(SUPABASE_SETUP_SQL);
+                      setCopiedSql(true);
+                      setTimeout(() => setCopiedSql(false), 2000);
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-md text-[11px] transition-all cursor-pointer"
+                  >
+                    {copiedSql ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                    {copiedSql ? 'Copied!' : 'Copy SQL'}
+                  </button>
+                </div>
+                <pre className="p-4 bg-slate-950 text-emerald-400 font-mono text-[11px] rounded-b-xl overflow-x-auto max-h-60 border border-slate-800 leading-relaxed">
+                  {SUPABASE_SETUP_SQL}
+                </pre>
+              </div>
+
+              <div className="space-y-1.5 text-xs text-slate-600">
+                <p className="font-bold text-slate-800">Quick Steps in Supabase Dashboard (कदम):</p>
+                <ol className="list-decimal pl-5 space-y-1 text-[11px] font-medium text-slate-600">
+                  <li>Open your Supabase Dashboard: <a href="https://supabase.com/dashboard" target="_blank" rel="noreferrer" className="text-indigo-600 underline font-bold">supabase.com/dashboard</a></li>
+                  <li>Go to <strong>SQL Editor</strong> on the left sidebar menu.</li>
+                  <li>Click <strong>New Query</strong>, paste the copied SQL above, and click <strong>RUN</strong>.</li>
+                  <li>Refresh this TexFlow website page — your data will now save live in Supabase!</li>
+                </ol>
+              </div>
+            </div>
+
+            <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowSqlModal(false)}
+                className="px-5 py-2 bg-slate-900 hover:bg-slate-800 text-white font-extrabold rounded-xl text-xs transition-colors cursor-pointer"
+              >
+                Close Window
               </button>
             </div>
           </div>
