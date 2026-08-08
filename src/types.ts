@@ -7,6 +7,15 @@ export type EmployeeType = 'Worker' | 'Admin Employee';
 export type AttendanceStatus = 'Present' | 'Absent' | 'Half-Day';
 export type PayrollStatus = 'Pending' | 'Paid';
 
+export type UserRole = 'admin' | 'staff';
+
+export interface UserSession {
+  role: UserRole;
+  username: string;
+  displayName: string;
+  loggedInAt: string;
+}
+
 export interface BankDetails {
   bankName: string;
   accountNumber: string;

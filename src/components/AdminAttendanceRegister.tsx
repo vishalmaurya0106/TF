@@ -17,13 +17,15 @@ interface AdminAttendanceRegisterProps {
   adminAttendances: AdminAttendance[];
   onAddAdminAttendance: (attendance: AdminAttendance) => void;
   onDeleteAdminAttendance: (id: string) => void;
+  isAdmin?: boolean;
 }
 
 export default function AdminAttendanceRegister({
   workers,
   adminAttendances,
   onAddAdminAttendance,
-  onDeleteAdminAttendance
+  onDeleteAdminAttendance,
+  isAdmin = true
 }: AdminAttendanceRegisterProps) {
   
   // Filter active Admin Staff
@@ -285,17 +287,19 @@ export default function AdminAttendanceRegister({
                               <div className="font-mono font-bold text-slate-900 text-xs mt-0.5">
                                 {formatCurrency(rec.calculatedWage)}
                               </div>
-                              <button
-                                title="Delete attendance record"
-                                onClick={() => {
-                                  setDeleteAdminAttendanceId(rec.adminAttendanceId);
-                                  setDeleteAdminAttendanceMessage(`Do you want to delete attendance record for ${adminObj?.name || rec.workerId} on ${formatDate(dateStr)}?`);
-                                  setIsConfirmDeleteOpen(true);
-                                }}
-                                className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-all cursor-pointer"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </button>
+                              {isAdmin && (
+                                <button
+                                  title="Delete attendance record"
+                                  onClick={() => {
+                                    setDeleteAdminAttendanceId(rec.adminAttendanceId);
+                                    setDeleteAdminAttendanceMessage(`Do you want to delete attendance record for ${adminObj?.name || rec.workerId} on ${formatDate(dateStr)}?`);
+                                    setIsConfirmDeleteOpen(true);
+                                  }}
+                                  className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-all cursor-pointer"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              )}
                             </div>
                           </div>
                         );

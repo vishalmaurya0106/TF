@@ -13,13 +13,15 @@ interface MachineRegistryProps {
   onToggleMachine: (machineId: string) => void;
   onAddMachine: (newMachine: Machine) => void;
   onDeleteMachine: (machineId: string) => void;
+  isAdmin?: boolean;
 }
 
 export default function MachineRegistry({ 
   machines, 
   onToggleMachine,
   onAddMachine,
-  onDeleteMachine
+  onDeleteMachine,
+  isAdmin = true
 }: MachineRegistryProps) {
   const activeCount = machines.filter(m => m.isActive).length;
 
@@ -151,17 +153,19 @@ export default function MachineRegistry({
                     {machine.isActive ? <Power className="h-4 w-4" /> : <PowerOff className="h-4 w-4" />}
                   </button>
                   
-                  <button
-                    id={`delete-machine-btn-${machine.machineId.replace(/\s+/g, '-')}`}
-                    onClick={() => {
-                      setDeleteMachineId(machine.machineId);
-                      setIsConfirmDeleteOpen(true);
-                    }}
-                    title="Delete Machine"
-                    className="p-1.5 rounded-lg bg-slate-100 hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
+                  {isAdmin && (
+                    <button
+                      id={`delete-machine-btn-${machine.machineId.replace(/\s+/g, '-')}`}
+                      onClick={() => {
+                        setDeleteMachineId(machine.machineId);
+                        setIsConfirmDeleteOpen(true);
+                      }}
+                      title="Delete Machine"
+                      className="p-1.5 rounded-lg bg-slate-100 hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  )}
                 </div>
               </div>
 

@@ -18,6 +18,7 @@ interface LoomDailyWorkProps {
   dailyWorks: DailyWork[];
   onAddDailyWork: (work: DailyWork) => void;
   onDeleteDailyWork: (workId: string) => void;
+  isAdmin?: boolean;
 }
 
 export default function LoomDailyWork({
@@ -25,7 +26,8 @@ export default function LoomDailyWork({
   machines,
   dailyWorks,
   onAddDailyWork,
-  onDeleteDailyWork
+  onDeleteDailyWork,
+  isAdmin = true
 }: LoomDailyWorkProps) {
   
   // Filter active loom operators
@@ -346,17 +348,19 @@ export default function LoomDailyWork({
                               <div className="font-mono font-bold text-slate-900 text-xs mt-0.5">
                                 {formatCurrency(work.calculatedWage)}
                               </div>
-                              <button
-                                title="Delete Log Entry"
-                                onClick={() => {
-                                  setDeleteWorkId(work.workId);
-                                  setDeleteWorkMessage(`Do you want to delete this production log for ${workerObj?.name || work.workerId} on ${formatDate(dateStr)}?`);
-                                  setIsConfirmDeleteOpen(true);
-                                }}
-                                className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-all cursor-pointer"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </button>
+                              {isAdmin && (
+                                <button
+                                  title="Delete Log Entry"
+                                  onClick={() => {
+                                    setDeleteWorkId(work.workId);
+                                    setDeleteWorkMessage(`Do you want to delete this production log for ${workerObj?.name || work.workerId} on ${formatDate(dateStr)}?`);
+                                    setIsConfirmDeleteOpen(true);
+                                  }}
+                                  className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-all cursor-pointer"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              )}
                             </div>
                           </div>
                         );

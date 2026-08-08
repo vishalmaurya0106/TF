@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { 
-  Worker, Machine, DailyWork, AdminAttendance, Attendance, Salary 
+  Worker, Machine, DailyWork, AdminAttendance, Attendance, Salary, UserSession 
 } from './types';
 import { 
   DEFAULT_MACHINES, SEED_WORKERS, SEED_DAILY_WORK, 
@@ -19,12 +19,14 @@ import AdminAttendanceRegister from './components/AdminAttendanceRegister';
 import MonthlySalarySheet from './components/MonthlySalarySheet';
 import MachineRegistry from './components/MachineRegistry';
 import ConfirmModal from './components/ConfirmModal';
+import LoginModal from './components/LoginModal';
 
 import { 
   Cpu, Users, Cpu as LoomIcon, Clock, Building, FileText, 
   Settings, Download, Upload, Trash2, ShieldCheck, Factory,
   Menu, X, Monitor, HelpCircle, Laptop, Chrome, ArrowUpRight,
-  Database, RefreshCw, CheckCircle2, AlertCircle, Copy, Check
+  Database, RefreshCw, CheckCircle2, AlertCircle, Copy, Check,
+  LogOut, User, Lock, KeyRound
 } from 'lucide-react';
 import { 
   testSupabaseConnection, 
@@ -45,6 +47,25 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isConfirmResetOpen, setIsConfirmResetOpen] = useState(false);
+
+  // --- Authentication States ---
+  const [currentSession, setCurrentSession] = useState<UserSession | null>(() => {
+    try {
+      const saved = localStorage.getItem('texflow_auth_session');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState<boolean>(!currentSession);
+
+  const isAdmin = currentSession?.role === 'admin';
+
+  const handleLogout = () => {
+    localStorage.removeItem('texflow_auth_session');
+    setCurrentSession(null);
+    setIsLoginModalOpen(true);
+  };
 
   // --- PWA Desktop Installation States ---
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
@@ -469,12 +490,23 @@ export default function App() {
           <Factory className="h-6 w-6 text-indigo-400" />
           <span className="font-display font-bold tracking-tight text-base text-white">TexFlow <span className="text-indigo-400 font-light">ERP</span></span>
         </div>
-        <button 
-          onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-          className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-300 transition-colors"
-        >
-          {isMobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-        </button>
+        <div className="flex items-center gap-2">
+          {currentSession && (
+            <button
+              onClick={handleLogout}
+              className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-300 hover:text-white rounded-lg border border-slate-700 flex items-center gap-1 cursor-pointer"
+            >
+              <LogOut className="h-3.5 w-3.5 text-rose-400" />
+              <span>{isAdmin ? 'Admin' : 'Staff'}</span>
+            </button>
+          )}
+          <button 
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-300 transition-colors"
+          >
+            {isMobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+          </button>
+        </div>
       </header>
 
       {/* Sidebar navigation panel */}
@@ -482,14 +514,41 @@ export default function App() {
         fixed md:relative inset-y-0 left-0 transform md:translate-x-0 transition-transform duration-200 ease-in-out
         ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
       `}>
-        {/* Core Sidebar Header */}
-        <div className="p-6 border-b border-slate-800 flex items-center gap-3">
-          <div className="p-2 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 rounded-xl">
-            <Factory className="h-6 w-6" />
+        {/* Core Sidebar Header & User Profile */}
+        <div className="p-5 border-b border-slate-800 space-y-3">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 rounded-xl">
+              <Factory className="h-6 w-6" />
+            </div>
+            <div>
+              <h1 className="font-display font-bold tracking-tight text-white text-lg">TexFlow <span className="text-indigo-400 font-light font-sans text-base">ERP</span></h1>
+              <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-widest mt-0.5">Textile Management System</p>
+            </div>
           </div>
-          <div>
-            <h1 className="font-display font-bold tracking-tight text-white text-lg">TexFlow <span className="text-indigo-400 font-light font-sans text-base">ERP</span></h1>
-            <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-widest mt-1">Textile Management System</p>
+
+          {/* Active User Account Card */}
+          <div className="bg-slate-800/80 p-2.5 rounded-xl border border-slate-700/80 flex items-center justify-between">
+            <div className="flex items-center gap-2 overflow-hidden">
+              <div className={`p-1.5 rounded-lg shrink-0 ${isAdmin ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'}`}>
+                {isAdmin ? <ShieldCheck className="h-4 w-4" /> : <User className="h-4 w-4" />}
+              </div>
+              <div className="overflow-hidden">
+                <p className="text-xs font-bold text-white truncate">
+                  {currentSession ? currentSession.displayName : 'Not Logged In'}
+                </p>
+                <p className="text-[10px] font-bold tracking-wider uppercase text-slate-400">
+                  {isAdmin ? '🛡️ Admin (Full Access)' : '👤 Staff (No Delete)'}
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={() => setIsLoginModalOpen(true)}
+              title="Switch Account or Logout"
+              className="p-1.5 hover:bg-slate-700 text-slate-400 hover:text-white rounded-lg transition-colors cursor-pointer shrink-0"
+            >
+              <LogOut className="h-4 w-4" />
+            </button>
           </div>
         </div>
 
@@ -667,6 +726,7 @@ export default function App() {
               onAddWorker={handleAddWorker}
               onUpdateWorker={handleUpdateWorker}
               onDeleteWorker={handleDeleteWorker}
+              isAdmin={isAdmin}
             />
           )}
 
@@ -677,6 +737,7 @@ export default function App() {
               dailyWorks={dailyWorks}
               onAddDailyWork={handleAddDailyWork}
               onDeleteDailyWork={handleDeleteDailyWork}
+              isAdmin={isAdmin}
             />
           )}
 
@@ -686,6 +747,7 @@ export default function App() {
               adminAttendances={adminAttendances}
               onAddAdminAttendance={handleAddAdminAttendance}
               onDeleteAdminAttendance={handleDeleteAdminAttendance}
+              isAdmin={isAdmin}
             />
           )}
 
@@ -705,11 +767,28 @@ export default function App() {
               onToggleMachine={handleToggleMachine}
               onAddMachine={handleAddMachine}
               onDeleteMachine={handleDeleteMachine}
+              isAdmin={isAdmin}
             />
           )}
         </div>
 
       </main>
+
+      {/* Authentication Modal */}
+      <LoginModal
+        isOpen={isLoginModalOpen}
+        currentSession={currentSession}
+        onClose={() => {
+          if (currentSession) {
+            setIsLoginModalOpen(false);
+          }
+        }}
+        onLoginSuccess={(session) => {
+          setCurrentSession(session);
+          localStorage.setItem('texflow_auth_session', JSON.stringify(session));
+          setIsLoginModalOpen(false);
+        }}
+      />
 
       {isConfirmResetOpen && (
         <ConfirmModal

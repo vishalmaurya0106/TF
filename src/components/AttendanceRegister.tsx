@@ -17,13 +17,15 @@ interface AttendanceRegisterProps {
   attendances: Attendance[];
   onAddAttendance: (attendance: Attendance) => void;
   onDeleteAttendance: (id: string) => void;
+  isAdmin?: boolean;
 }
 
 export default function AttendanceRegister({
   workers,
   attendances,
   onAddAttendance,
-  onDeleteAttendance
+  onDeleteAttendance,
+  isAdmin = true
 }: AttendanceRegisterProps) {
   
   // Filter active loom workers
@@ -285,17 +287,19 @@ export default function AttendanceRegister({
                               </div>
                             </div>
                             <div className="text-right flex items-center gap-1.5">
-                              <button
-                                title="Delete shift record"
-                                onClick={() => {
-                                  setDeleteAttendanceId(rec.attendanceId);
-                                  setDeleteAttendanceMessage(`Do you want to delete shift record for ${operatorObj?.name || rec.workerId} on ${formatDate(dateStr)}?`);
-                                  setIsConfirmDeleteOpen(true);
-                                }}
-                                className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-all cursor-pointer"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </button>
+                              {isAdmin && (
+                                <button
+                                  title="Delete shift record"
+                                  onClick={() => {
+                                    setDeleteAttendanceId(rec.attendanceId);
+                                    setDeleteAttendanceMessage(`Do you want to delete shift record for ${operatorObj?.name || rec.workerId} on ${formatDate(dateStr)}?`);
+                                    setIsConfirmDeleteOpen(true);
+                                  }}
+                                  className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-all cursor-pointer"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              )}
                             </div>
                           </div>
                         );

@@ -20,13 +20,15 @@ interface WorkersDirectoryProps {
   onAddWorker: (worker: Worker) => void;
   onUpdateWorker: (worker: Worker) => void;
   onDeleteWorker: (workerId: string) => void;
+  isAdmin?: boolean;
 }
 
 export default function WorkersDirectory({ 
   workers, 
   onAddWorker, 
   onUpdateWorker, 
-  onDeleteWorker 
+  onDeleteWorker,
+  isAdmin = true
 }: WorkersDirectoryProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState<'all' | EmployeeType>('all');
@@ -518,17 +520,19 @@ export default function WorkersDirectory({
                         >
                           <Pencil className="h-4 w-4" />
                         </button>
-                        <button
-                          title="Delete Employee"
-                          onClick={() => {
-                            setDeleteWorkerId(worker.workerId);
-                            setDeleteWorkerName(worker.name);
-                            setIsConfirmDeleteOpen(true);
-                          }}
-                          className="p-1.5 hover:bg-rose-50 rounded-lg text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
+                        {isAdmin && (
+                          <button
+                            title="Delete Employee"
+                            onClick={() => {
+                              setDeleteWorkerId(worker.workerId);
+                              setDeleteWorkerName(worker.name);
+                              setIsConfirmDeleteOpen(true);
+                            }}
+                            className="p-1.5 hover:bg-rose-50 rounded-lg text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
