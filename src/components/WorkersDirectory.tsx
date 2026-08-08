@@ -3,14 +3,16 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Worker, EmployeeType } from '../types';
 import { naturalSortWorkers, formatCurrency } from '../utils';
 import ConfirmModal from './ConfirmModal';
+import * as XLSX from 'xlsx';
 import { 
   Users, UserPlus, Pencil, Eye, ToggleLeft, ToggleRight, 
   Search, ShieldAlert, CreditCard, Building2, UserCheck, 
-  Trash2, X, Check, Landmark, CalendarDays, Smartphone, MapPin
+  Trash2, X, Check, Landmark, CalendarDays, Smartphone, MapPin,
+  Upload, Download, FileSpreadsheet
 } from 'lucide-react';
 
 interface WorkersDirectoryProps {
@@ -29,6 +31,9 @@ export default function WorkersDirectory({
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState<'all' | EmployeeType>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('active');
+
+  // Excel File Input Ref
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Confirmation Modal State
   const [isConfirmDeleteOpen, setIsConfirmDeleteOpen] = useState(false);
@@ -90,24 +95,24 @@ export default function WorkersDirectory({
     
     setFormWorkerId(worker.workerId);
     setFormName(worker.name);
-    setFormMobile(worker.mobileNumber);
-    setFormAddress(worker.address);
-    setFormJoiningDate(worker.joiningDate);
-    setFormAadhaar(worker.aadhaarNumber);
+    setFormMobile(worker.mobileNumber || '');
+    setFormAddress(worker.address || '');
+    setFormJoiningDate(worker.joiningDate || '');
+    setFormAadhaar(worker.aadhaarNumber || '');
     setFormRate(worker.perMachineRate.toString());
     setFormType(worker.employeeType);
     setFormIsActive(worker.isActive);
     
-    setFormBankName(worker.bankDetails.bankName);
-    setFormAccNumber(worker.bankDetails.accountNumber);
-    setFormIfsc(worker.bankDetails.ifscCode);
-    setFormBeneficiary(worker.bankDetails.beneficiaryName);
+    setFormBankName(worker.bankDetails?.bankName || '');
+    setFormAccNumber(worker.bankDetails?.accountNumber || '');
+    setFormIfsc(worker.bankDetails?.ifscCode || '');
+    setFormBeneficiary(worker.bankDetails?.beneficiaryName || '');
     
     setErrors({});
     setIsModalOpen(true);
   };
 
-  // Validate form fields
+  // Validate form fields (Mobile, Aadhaar, Bank details are OPTIONAL)
   const validateForm = (): boolean => {
     const newErrors: { [key: string]: string } = {};
 
@@ -121,27 +126,19 @@ export default function WorkersDirectory({
       newErrors.name = 'Employee Name is required';
     }
 
-    if (!formMobile.trim()) {
-      newErrors.mobile = 'Mobile Number is required';
-    } else if (!/^\d{10}$/.test(formMobile.trim().replace(/\D/g, ''))) {
-      newErrors.mobile = 'Mobile Number must be exactly 10 digits';
-    }
-
-    if (!formAadhaar.trim()) {
-      newErrors.aadhaar = 'Aadhaar Number is required';
-    } else if (formAadhaar.trim().replace(/\s|-/g, '').length !== 12) {
-      newErrors.aadhaar = 'Aadhaar must be exactly 12 digits';
-    }
-
     if (!formRate.trim()) {
       newErrors.rate = 'Wages / Salary rate is required';
     } else if (isNaN(parseFloat(formRate)) || parseFloat(formRate) < 0) {
-      newErrors.rate = 'Wages / Salary rate must be a positive decimal';
+      newErrors.rate = 'Wages / Salary rate must be a valid number';
     }
 
-    if (!formBankName.trim()) newErrors.bankName = 'Bank Name is required';
-    if (!formAccNumber.trim()) newErrors.accNumber = 'Account Number is required';
-    if (!formIfsc.trim()) newErrors.ifsc = 'IFSC Code is required';
+    // Mobile is optional, but validate format if entered
+    if (formMobile.trim() && formMobile.trim().length > 0) {
+      const cleanDigits = formMobile.trim().replace(/\D/g, '');
+      if (cleanDigits.length > 0 && cleanDigits.length !== 10) {
+        newErrors.mobile = 'Mobile Number must be 10 digits';
+      }
+    }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -159,7 +156,7 @@ export default function WorkersDirectory({
       mobileNumber: formMobile.trim(),
       address: formAddress.trim(),
       joiningDate: formJoiningDate,
-      aadhaarNumber: formAadhaar.trim().replace(/(\d{4})(\d{4})(\d{4})/, '$1-$2-$3'), // nice format
+      aadhaarNumber: formAadhaar.trim(),
       isActive: formIsActive,
       perMachineRate: parsedRate,
       employeeType: formType,
@@ -178,6 +175,138 @@ export default function WorkersDirectory({
     }
     
     setIsModalOpen(false);
+  };
+
+  // --- Excel Sample Download ---
+  const handleDownloadExcelSample = () => {
+    const sampleRows = [
+      {
+        "Employee ID": "101",
+        "Full Name": "Ramesh Kumar",
+        "Employee Type": "Worker",
+        "Per Machine or Daily Rate": 350,
+        "Mobile Number": "9876543210",
+        "Aadhaar Number": "123456789012",
+        "Address": "Quarter 4, TexFlow Factory",
+        "Joining Date": "2026-01-01",
+        "Bank Name": "State Bank of India",
+        "Account Number": "32109876543",
+        "IFSC Code": "SBIN0001234",
+        "Beneficiary Name": "Ramesh Kumar"
+      },
+      {
+        "Employee ID": "102",
+        "Full Name": "Suresh Sharma",
+        "Employee Type": "Admin Employee",
+        "Per Machine or Daily Rate": 1200,
+        "Mobile Number": "",
+        "Aadhaar Number": "",
+        "Address": "",
+        "Joining Date": "2026-01-15",
+        "Bank Name": "",
+        "Account Number": "",
+        "IFSC Code": "",
+        "Beneficiary Name": ""
+      }
+    ];
+
+    const worksheet = XLSX.utils.json_to_sheet(sampleRows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Employees_Template");
+    XLSX.writeFile(workbook, "TexFlow_Employee_Import_Sample.xlsx");
+  };
+
+  // --- Excel File Upload Parser ---
+  const handleExcelFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const bstr = evt.target?.result;
+        const workbook = XLSX.read(bstr, { type: 'binary' });
+        const firstSheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheetName];
+        const jsonRows: any[] = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
+
+        if (!jsonRows || jsonRows.length === 0) {
+          alert("The selected Excel file is empty or invalid.");
+          return;
+        }
+
+        let addedCount = 0;
+        let updatedCount = 0;
+
+        jsonRows.forEach((row) => {
+          const getKey = (possibleKeys: string[]) => {
+            for (const key of possibleKeys) {
+              const foundKey = Object.keys(row).find(k => k.trim().toLowerCase() === key.toLowerCase());
+              if (foundKey && row[foundKey] !== undefined && row[foundKey] !== null) {
+                return String(row[foundKey]).trim();
+              }
+            }
+            return '';
+          };
+
+          const rawId = getKey(['Employee ID', 'workerId', 'ID', 'Id', 'Emp ID']);
+          const rawName = getKey(['Full Name', 'Name', 'Employee Name', 'name']);
+          
+          if (!rawId || !rawName) return;
+
+          const rawType = getKey(['Employee Type', 'Type', 'Designation']);
+          const employeeType: EmployeeType = (rawType.toLowerCase().includes('admin')) ? 'Admin Employee' : 'Worker';
+
+          const rawRate = getKey(['Per Machine or Daily Rate', 'Rate', 'perMachineRate', 'Salary', 'Wage']);
+          const parsedRate = parseFloat(rawRate) || 0;
+
+          const mobile = getKey(['Mobile Number', 'Mobile', 'mobileNumber', 'Phone']);
+          const aadhaar = getKey(['Aadhaar Number', 'Aadhaar', 'aadhaarNumber']);
+          const address = getKey(['Address', 'address']);
+          const joiningDate = getKey(['Joining Date', 'Joining', 'joiningDate']) || new Date().toISOString().split('T')[0];
+          const bankName = getKey(['Bank Name', 'Bank', 'bankName']);
+          const accountNumber = getKey(['Account Number', 'Account', 'accountNumber']);
+          const ifscCode = getKey(['IFSC Code', 'IFSC', 'ifscCode']);
+          const beneficiaryName = getKey(['Beneficiary Name', 'Beneficiary', 'beneficiaryName']);
+
+          const existingWorker = workers.find(w => w.workerId.toLowerCase() === rawId.toLowerCase());
+
+          const workerObj: Worker = {
+            workerId: rawId,
+            name: rawName,
+            mobileNumber: mobile,
+            address: address,
+            joiningDate: joiningDate,
+            aadhaarNumber: aadhaar,
+            isActive: true,
+            perMachineRate: parsedRate,
+            employeeType: employeeType,
+            bankDetails: {
+              bankName: bankName,
+              accountNumber: accountNumber,
+              ifscCode: ifscCode.toUpperCase(),
+              beneficiaryName: beneficiaryName || rawName
+            }
+          };
+
+          if (existingWorker) {
+            onUpdateWorker(workerObj);
+            updatedCount++;
+          } else {
+            onAddWorker(workerObj);
+            addedCount++;
+          }
+        });
+
+        alert(`Excel Import Successful!\n\n• New Employees Added: ${addedCount}\n• Existing Profiles Updated: ${updatedCount}`);
+      } catch (err: any) {
+        alert(`Error parsing Excel file: ${err?.message || 'Invalid format'}`);
+      } finally {
+        if (e.target) e.target.value = '';
+      }
+    };
+
+    reader.readAsBinaryString(file);
   };
 
   const toggleWorkerStatus = (worker: Worker) => {
@@ -205,7 +334,16 @@ export default function WorkersDirectory({
   return (
     <div className="space-y-6">
       
-      {/* Header and Add Button */}
+      {/* Hidden File Input for Excel Import */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        accept=".xlsx, .xls, .csv"
+        onChange={handleExcelFileUpload}
+        className="hidden"
+      />
+
+      {/* Header and Action Buttons */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
         <div className="flex items-center gap-3">
           <div className="p-3 bg-indigo-50 rounded-xl text-indigo-600">
@@ -216,14 +354,40 @@ export default function WorkersDirectory({
             <p className="text-sm text-slate-500 font-medium">Manage and monitor Loom Operators and Administrative Staff</p>
           </div>
         </div>
-        <button
-          id="add-worker-btn"
-          onClick={handleOpenAddModal}
-          className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-5 py-2.5 rounded-xl shadow-sm transition-all text-sm cursor-pointer hover:-translate-y-0.5 duration-150"
-        >
-          <UserPlus className="h-4.5 w-4.5" />
-          Register Employee
-        </button>
+
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Download Excel Sample Template */}
+          <button
+            type="button"
+            onClick={handleDownloadExcelSample}
+            className="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-3.5 py-2.5 rounded-xl border border-slate-300 transition-all text-xs cursor-pointer"
+            title="Download Excel template for bulk employee upload"
+          >
+            <Download className="h-4 w-4 text-slate-600" />
+            Excel Sample
+          </button>
+
+          {/* Upload Excel */}
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3.5 py-2.5 rounded-xl shadow-sm transition-all text-xs cursor-pointer"
+            title="Import employees from Excel (.xlsx, .csv) file"
+          >
+            <Upload className="h-4 w-4" />
+            Upload Excel
+          </button>
+
+          {/* Register Single Employee */}
+          <button
+            id="add-worker-btn"
+            onClick={handleOpenAddModal}
+            className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-4 py-2.5 rounded-xl shadow-sm transition-all text-xs cursor-pointer hover:-translate-y-0.5 duration-150"
+          >
+            <UserPlus className="h-4 w-4" />
+            Register Employee
+          </button>
+        </div>
       </div>
 
       {/* Filter Bar */}
@@ -408,7 +572,7 @@ export default function WorkersDirectory({
                     <input
                       id="form-worker-id"
                       type="text"
-                      placeholder="e.g., 220, TFW-1001"
+                      placeholder=""
                       disabled={isEditMode}
                       value={formWorkerId}
                       onChange={(e) => setFormWorkerId(e.target.value)}
@@ -442,7 +606,7 @@ export default function WorkersDirectory({
                       id="form-worker-rate"
                       type="number"
                       step="0.01"
-                      placeholder={formType === 'Worker' ? 'e.g., 350.50' : 'e.g., 1200.00'}
+                      placeholder="0.00"
                       value={formRate}
                       onChange={(e) => setFormRate(e.target.value)}
                       className="w-full px-3.5 py-2.5 border border-slate-200 focus:border-slate-400 rounded-xl outline-none text-sm transition-all font-mono font-bold"
@@ -482,7 +646,7 @@ export default function WorkersDirectory({
                     <input
                       id="form-worker-name"
                       type="text"
-                      placeholder="e.g., Vishal Maurya"
+                      placeholder=""
                       value={formName}
                       onChange={(e) => setFormName(e.target.value)}
                       className="w-full px-3.5 py-2.5 border border-slate-200 focus:border-slate-400 rounded-xl outline-none text-sm transition-all font-medium"
@@ -492,12 +656,12 @@ export default function WorkersDirectory({
 
                   {/* Mobile Number */}
                   <div>
-                    <label className="block text-xs font-bold text-slate-600 mb-1.5">Mobile Contact Number <span className="text-red-500">*</span></label>
+                    <label className="block text-xs font-bold text-slate-600 mb-1.5">Mobile Contact Number <span className="text-slate-400 font-normal">(Optional)</span></label>
                     <input
                       id="form-worker-mobile"
                       type="tel"
                       maxLength={10}
-                      placeholder="e.g., 9876543210"
+                      placeholder=""
                       value={formMobile}
                       onChange={(e) => setFormMobile(e.target.value)}
                       className="w-full px-3.5 py-2.5 border border-slate-200 focus:border-slate-400 rounded-xl outline-none text-sm transition-all font-medium"
@@ -507,24 +671,23 @@ export default function WorkersDirectory({
 
                   {/* Aadhaar Number */}
                   <div>
-                    <label className="block text-xs font-bold text-slate-600 mb-1.5">Aadhaar Card Number <span className="text-red-500">*</span></label>
+                    <label className="block text-xs font-bold text-slate-600 mb-1.5">Aadhaar Card Number <span className="text-slate-400 font-normal">(Optional)</span></label>
                     <input
                       id="form-worker-aadhaar"
                       type="text"
-                      placeholder="e.g., 1234 5678 9012"
+                      placeholder=""
                       value={formAadhaar}
                       onChange={(e) => setFormAadhaar(e.target.value)}
                       className="w-full px-3.5 py-2.5 border border-slate-200 focus:border-slate-400 rounded-xl outline-none text-sm transition-all font-mono"
                     />
-                    {errors.aadhaar && <p className="text-xs text-red-500 mt-1 font-semibold">{errors.aadhaar}</p>}
                   </div>
 
                   {/* Residential Address */}
                   <div className="col-span-1 sm:col-span-2">
-                    <label className="block text-xs font-bold text-slate-600 mb-1.5">Residential Address</label>
+                    <label className="block text-xs font-bold text-slate-600 mb-1.5">Residential Address <span className="text-slate-400 font-normal">(Optional)</span></label>
                     <textarea
                       id="form-worker-address"
-                      placeholder="Enter complete permanent/local residential address..."
+                      placeholder=""
                       rows={2}
                       value={formAddress}
                       onChange={(e) => setFormAddress(e.target.value)}
@@ -537,58 +700,55 @@ export default function WorkersDirectory({
               {/* Bank Details */}
               <div>
                 <h4 className="text-xs font-extrabold text-slate-400 uppercase tracking-widest mb-3 border-b pb-1 flex items-center gap-1">
-                  <Landmark className="h-4 w-4 text-slate-500" /> 3. Bank Account & Remittance Details
+                  <Landmark className="h-4 w-4 text-slate-500" /> 3. Bank Account & Remittance Details <span className="text-slate-400 font-normal capitalize">(Optional)</span>
                 </h4>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {/* Bank Name */}
                   <div>
-                    <label className="block text-xs font-bold text-slate-600 mb-1.5">Bank Name <span className="text-red-500">*</span></label>
+                    <label className="block text-xs font-bold text-slate-600 mb-1.5">Bank Name <span className="text-slate-400 font-normal">(Optional)</span></label>
                     <input
                       id="form-worker-bank"
                       type="text"
-                      placeholder="e.g., State Bank of India"
+                      placeholder=""
                       value={formBankName}
                       onChange={(e) => setFormBankName(e.target.value)}
                       className="w-full px-3.5 py-2.5 border border-slate-200 focus:border-slate-400 rounded-xl outline-none text-sm transition-all font-medium"
                     />
-                    {errors.bankName && <p className="text-xs text-red-500 mt-1 font-semibold">{errors.bankName}</p>}
                   </div>
 
                   {/* Account Number */}
                   <div>
-                    <label className="block text-xs font-bold text-slate-600 mb-1.5">Bank Account Number <span className="text-red-500">*</span></label>
+                    <label className="block text-xs font-bold text-slate-600 mb-1.5">Bank Account Number <span className="text-slate-400 font-normal">(Optional)</span></label>
                     <input
                       id="form-worker-account"
                       type="text"
-                      placeholder="e.g., 32104598761"
+                      placeholder=""
                       value={formAccNumber}
                       onChange={(e) => setFormAccNumber(e.target.value)}
                       className="w-full px-3.5 py-2.5 border border-slate-200 focus:border-slate-400 rounded-xl outline-none text-sm transition-all font-mono"
                     />
-                    {errors.accNumber && <p className="text-xs text-red-500 mt-1 font-semibold">{errors.accNumber}</p>}
                   </div>
 
                   {/* IFSC Code */}
                   <div>
-                    <label className="block text-xs font-bold text-slate-600 mb-1.5">IFSC Code <span className="text-red-500">*</span></label>
+                    <label className="block text-xs font-bold text-slate-600 mb-1.5">IFSC Code <span className="text-slate-400 font-normal">(Optional)</span></label>
                     <input
                       id="form-worker-ifsc"
                       type="text"
-                      placeholder="e.g., SBIN0001043"
+                      placeholder=""
                       value={formIfsc}
                       onChange={(e) => setFormIfsc(e.target.value)}
                       className="w-full px-3.5 py-2.5 border border-slate-200 focus:border-slate-400 rounded-xl outline-none text-sm transition-all font-mono uppercase"
                     />
-                    {errors.ifsc && <p className="text-xs text-red-500 mt-1 font-semibold">{errors.ifsc}</p>}
                   </div>
 
                   {/* Beneficiary Name */}
                   <div>
-                    <label className="block text-xs font-bold text-slate-600 mb-1.5">Beneficiary Name (As in Passbook)</label>
+                    <label className="block text-xs font-bold text-slate-600 mb-1.5">Beneficiary Name <span className="text-slate-400 font-normal">(Optional)</span></label>
                     <input
                       id="form-worker-beneficiary"
                       type="text"
-                      placeholder="Leave blank to use full name"
+                      placeholder=""
                       value={formBeneficiary}
                       onChange={(e) => setFormBeneficiary(e.target.value)}
                       className="w-full px-3.5 py-2.5 border border-slate-200 focus:border-slate-400 rounded-xl outline-none text-sm transition-all font-medium"
