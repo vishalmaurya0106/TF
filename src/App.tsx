@@ -47,6 +47,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isConfirmResetOpen, setIsConfirmResetOpen] = useState(false);
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
 
   // --- Authentication States ---
   // In-memory session state: page refresh or browser close auto-logouts the user
@@ -606,124 +607,52 @@ export default function App() {
               </button>
             );
           })}
+          {/* Settings Menu Button in Navigation */}
+          <button
+            type="button"
+            id="open-settings-nav-btn"
+            onClick={() => {
+              setIsSettingsModalOpen(true);
+              setIsMobileMenuOpen(false);
+            }}
+            className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium text-slate-400 hover:bg-slate-800 hover:text-white transition-all cursor-pointer"
+          >
+            <div className="flex items-center gap-3">
+              <Settings className="h-4.5 w-4.5 text-indigo-400" />
+              <span>Settings Menu (सेटिंग्स)</span>
+            </div>
+            {supabaseStatus === 'connected' && (
+              <span className="flex h-2 w-2 relative">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
+            )}
+          </button>
         </nav>
 
-        {/* Supabase Live Cloud Database Status Panel */}
-        <div className="p-4 border-t border-slate-800 bg-emerald-950/20 space-y-2.5">
-          <div className="flex items-center justify-between">
-            <p className="text-[10px] font-extrabold text-emerald-400 uppercase tracking-widest flex items-center gap-1.5">
-              <Database className="h-3.5 w-3.5" /> Supabase Live DB
-            </p>
-            <div className="flex items-center gap-1">
-              {supabaseStatus === 'connected' && (
+        {/* Sidebar Footer - Settings & Controls Quick Button */}
+        <div className="p-4 border-t border-slate-800 bg-slate-900/60">
+          <button
+            type="button"
+            id="open-settings-footer-btn"
+            onClick={() => setIsSettingsModalOpen(true)}
+            className="w-full flex items-center justify-between px-3.5 py-2.5 bg-slate-800 hover:bg-slate-750 text-slate-200 hover:text-white rounded-xl text-xs font-bold transition-all cursor-pointer border border-slate-700/80 shadow-xs group"
+          >
+            <div className="flex items-center gap-2.5">
+              <Settings className="h-4 w-4 text-indigo-400 group-hover:rotate-45 transition-transform duration-200" />
+              <span>Settings & Controls</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              {supabaseStatus === 'connected' ? (
                 <span className="flex h-2 w-2 relative">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
                 </span>
-              )}
-              {supabaseStatus === 'error' && (
+              ) : (
                 <span className="inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
               )}
             </div>
-          </div>
-
-          <div className="text-[11px] font-medium text-slate-300 bg-slate-900/90 p-2.5 rounded-lg border border-slate-800 flex items-start gap-2">
-            {supabaseStatus === 'connected' ? (
-              <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0 mt-0.5" />
-            ) : supabaseStatus === 'connecting' ? (
-              <RefreshCw className="h-4 w-4 text-indigo-400 animate-spin shrink-0 mt-0.5" />
-            ) : (
-              <AlertCircle className="h-4 w-4 text-amber-400 shrink-0 mt-0.5" />
-            )}
-            <div className="overflow-hidden">
-              <p className="font-bold text-slate-200 text-[11px] truncate">
-                {supabaseStatus === 'connected' ? 'Supabase Connected' : supabaseStatus === 'connecting' ? 'Connecting...' : 'Database Setup Required'}
-              </p>
-              <p className="text-[10px] text-slate-400 leading-tight line-clamp-2 mt-0.5">
-                {supabaseMsg}
-              </p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={handleManualSyncAll}
-              disabled={isSyncing}
-              className="flex items-center justify-center gap-1 px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-700 text-white rounded-lg text-xs font-bold transition-all cursor-pointer shadow-xs"
-            >
-              <RefreshCw className={`h-3 w-3 ${isSyncing ? 'animate-spin' : ''}`} />
-              {isSyncing ? 'Syncing...' : 'Sync Data'}
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowSqlModal(true)}
-              className="flex items-center justify-center gap-1 px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-emerald-900/50 rounded-lg text-xs font-bold transition-all cursor-pointer"
-            >
-              <Database className="h-3 w-3" />
-              SQL Setup
-            </button>
-          </div>
-        </div>
-
-        {/* PWA Desktop App Installer Panel */}
-        <div className="p-4 border-t border-slate-800 bg-indigo-950/25 space-y-2">
-          <p className="text-[10px] font-extrabold text-indigo-400 uppercase tracking-widest px-2 flex items-center gap-1.5">
-            <Laptop className="h-3.5 w-3.5" /> Windows Desktop App
-          </p>
-          <button
-            type="button"
-            id="install-desktop-app-btn"
-            onClick={handleInstallClick}
-            className="w-full flex items-center justify-center gap-1.5 px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition-all cursor-pointer shadow-md shadow-indigo-950/40"
-          >
-            <Monitor className="h-3.5 w-3.5" />
-            Install on Computer
           </button>
-          <button
-            type="button"
-            onClick={() => setShowInstallGuide(true)}
-            className="w-full text-center text-[10px] font-semibold text-slate-400 hover:text-indigo-300 transition-colors cursor-pointer block"
-          >
-            How to install manually?
-          </button>
-        </div>
-
-        {/* Backup, Restore & Reset Footer panel */}
-        <div className="p-4 border-t border-slate-800 bg-slate-900/60 space-y-2.5">
-          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider px-2">
-            Storage & Backup Manager
-          </p>
-          <div className="grid grid-cols-2 gap-2">
-            {/* Export Backup */}
-            <button
-              id="export-backup-btn"
-              onClick={handleExportBackup}
-              title="Download full TexFlow JSON backup"
-              className="flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-750 text-slate-300 hover:text-white border border-slate-700 rounded-lg text-xs font-semibold transition-all cursor-pointer"
-            >
-              <Download className="h-3.5 w-3.5" />
-              Backup
-            </button>
-
-            {/* Import Backup */}
-            <label
-              id="import-backup-label"
-              className="flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-750 text-slate-300 hover:text-white border border-slate-700 rounded-lg text-xs font-semibold transition-all cursor-pointer relative"
-            >
-              <Upload className="h-3.5 w-3.5" />
-              <span>Restore</span>
-              <input
-                id="import-backup-file-input"
-                type="file"
-                accept=".json"
-                onChange={handleImportBackup}
-                className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-              />
-            </label>
-          </div>
-
-
         </div>
 
       </aside>
@@ -797,6 +726,185 @@ export default function App() {
         </div>
 
       </main>
+
+      {/* Settings & System Controls Modal */}
+      {isSettingsModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-xs flex justify-center items-center p-4 z-50 animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-xl overflow-hidden animate-in zoom-in-95 duration-150">
+            {/* Header */}
+            <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-900 text-white">
+              <div className="flex items-center gap-2.5">
+                <Settings className="h-5.5 w-5.5 text-indigo-400" />
+                <div>
+                  <h3 className="font-bold text-white text-base">TexFlow Settings & System Controls</h3>
+                  <p className="text-[11px] text-slate-400 font-medium">Database Sync, Backup, Restore & App Installation</p>
+                </div>
+              </div>
+              <button 
+                type="button" 
+                onClick={() => setIsSettingsModalOpen(false)}
+                className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-all cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 space-y-5 max-h-[75vh] overflow-y-auto">
+
+              {/* 1. Supabase Database Panel */}
+              <div className="p-4 rounded-xl border border-emerald-200 bg-emerald-50/50 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-extrabold text-emerald-900 uppercase tracking-wider flex items-center gap-1.5">
+                    <Database className="h-4 w-4 text-emerald-600" /> Supabase Cloud Database Status
+                  </h4>
+                  <div className="flex items-center gap-1.5 bg-white px-2.5 py-1 rounded-full border border-emerald-200 shadow-2xs">
+                    {supabaseStatus === 'connected' ? (
+                      <>
+                        <span className="flex h-2 w-2 relative">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                        </span>
+                        <span className="text-[11px] font-bold text-emerald-700">Connected</span>
+                      </>
+                    ) : supabaseStatus === 'connecting' ? (
+                      <>
+                        <RefreshCw className="h-3 w-3 text-indigo-500 animate-spin" />
+                        <span className="text-[11px] font-bold text-indigo-700">Connecting...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+                        <span className="text-[11px] font-bold text-amber-700">Local Cache Mode</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                <div className="text-xs text-slate-700 bg-white p-3 rounded-lg border border-emerald-100/80 flex items-start gap-2.5">
+                  {supabaseStatus === 'connected' ? (
+                    <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
+                  ) : supabaseStatus === 'connecting' ? (
+                    <RefreshCw className="h-4 w-4 text-indigo-500 animate-spin shrink-0 mt-0.5" />
+                  ) : (
+                    <AlertCircle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
+                  )}
+                  <div className="text-[11px]">
+                    <p className="font-bold text-slate-900">
+                      {supabaseStatus === 'connected' ? 'Live Cloud Sync Active' : supabaseStatus === 'connecting' ? 'Connecting to Cloud...' : 'Running on Local Storage'}
+                    </p>
+                    <p className="text-slate-500 leading-relaxed mt-0.5">{supabaseMsg}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={handleManualSyncAll}
+                    disabled={isSyncing}
+                    className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white rounded-lg text-xs font-bold transition-all cursor-pointer shadow-xs"
+                  >
+                    <RefreshCw className={`h-3.5 w-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
+                    {isSyncing ? 'Syncing Now...' : 'Sync Cloud Data Now'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsSettingsModalOpen(false);
+                      setShowSqlModal(true);
+                    }}
+                    className="flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-900 hover:bg-slate-800 text-emerald-400 rounded-lg text-xs font-bold transition-all cursor-pointer"
+                  >
+                    <Database className="h-3.5 w-3.5" />
+                    SQL Setup Script
+                  </button>
+                </div>
+              </div>
+
+              {/* 2. Backup & Restore Storage Manager */}
+              <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-3">
+                <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                  <Download className="h-4 w-4 text-indigo-600" /> Data Backup & Restore Manager
+                </h4>
+                <p className="text-[11px] text-slate-500 font-medium">
+                  Export all factory workers, loom work logs, and salary registers into a JSON backup file or restore previously saved data.
+                </p>
+
+                <div className="grid grid-cols-2 gap-2.5">
+                  <button
+                    type="button"
+                    id="export-backup-btn"
+                    onClick={handleExportBackup}
+                    className="flex items-center justify-center gap-2 px-3.5 py-2.5 bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-2xs"
+                  >
+                    <Download className="h-4 w-4 text-indigo-600" />
+                    Export Backup (JSON)
+                  </button>
+
+                  <label
+                    id="import-backup-label"
+                    className="flex items-center justify-center gap-2 px-3.5 py-2.5 bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 rounded-xl text-xs font-bold transition-all cursor-pointer relative shadow-2xs"
+                  >
+                    <Upload className="h-4 w-4 text-emerald-600" />
+                    <span>Restore Data</span>
+                    <input
+                      id="import-backup-file-input"
+                      type="file"
+                      accept=".json"
+                      onChange={handleImportBackup}
+                      className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                    />
+                  </label>
+                </div>
+              </div>
+
+              {/* 3. Windows Desktop App Installation */}
+              <div className="p-4 rounded-xl border border-indigo-200 bg-indigo-50/50 space-y-3">
+                <h4 className="text-xs font-extrabold text-indigo-950 uppercase tracking-wider flex items-center gap-1.5">
+                  <Laptop className="h-4 w-4 text-indigo-600" /> Windows / Desktop Computer App
+                </h4>
+                <p className="text-[11px] text-indigo-900 font-medium">
+                  Install TexFlow on your computer desktop for fast access without opening browser tabs manually.
+                </p>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    id="install-desktop-app-btn"
+                    onClick={handleInstallClick}
+                    className="flex-1 flex items-center justify-center gap-1.5 px-3.5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-sm"
+                  >
+                    <Monitor className="h-4 w-4" />
+                    Install App on PC
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsSettingsModalOpen(false);
+                      setShowInstallGuide(true);
+                    }}
+                    className="px-3.5 py-2.5 bg-white hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                  >
+                    Manual Install Guide
+                  </button>
+                </div>
+              </div>
+
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setIsSettingsModalOpen(false)}
+                className="px-5 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl text-xs transition-colors cursor-pointer"
+              >
+                Close Settings
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Authentication Modal */}
       <LoginModal
