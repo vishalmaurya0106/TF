@@ -628,8 +628,7 @@ export default function App() {
             { id: 'admin-att', label: 'Admin attendance', icon: <Building className="h-4.5 w-4.5" /> },
             { id: 'other-att', label: 'Other Attendance', icon: <Users className="h-4.5 w-4.5 text-amber-400" /> },
             { id: 'salary', label: 'Monthly Salary ledger', icon: <FileText className="h-4.5 w-4.5" /> },
-            { id: 'machines', label: 'Loom machines', icon: <Cpu className="h-4.5 w-4.5 text-indigo-400" /> },
-            ...(isAdmin ? [{ id: 'settings', label: 'Settings & Controls', icon: <Settings className="h-4.5 w-4.5 text-indigo-400" /> }] : [])
+            { id: 'machines', label: 'Loom machines', icon: <Cpu className="h-4.5 w-4.5 text-indigo-400" /> }
           ].map((tab) => {
             const isSelected = activeTab === tab.id;
             return (
