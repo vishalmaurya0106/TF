@@ -182,9 +182,10 @@ export default function LoomDailyWork({
     setCustomRate(null);
   };
 
-  // Filter Date Range State
-  const [filterStartDate, setFilterStartDate] = useState<string>('');
-  const [filterEndDate, setFilterEndDate] = useState<string>('');
+  // Filter Date Range State (Default to Today)
+  const todayStr = new Date().toISOString().split('T')[0];
+  const [filterStartDate, setFilterStartDate] = useState<string>(todayStr);
+  const [filterEndDate, setFilterEndDate] = useState<string>(todayStr);
 
   // Filter dailyWorks based on date range
   const filteredDailyWorks = dailyWorks.filter(dw => {

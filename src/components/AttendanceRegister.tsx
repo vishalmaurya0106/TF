@@ -10,7 +10,7 @@ import ConfirmModal from './ConfirmModal';
 import { DateInput } from './DateInput';
 import { 
   ClipboardList, Clock, Check, Sparkles, 
-  UserCheck, Trash2, ShieldAlert, ArrowRight, Save
+  UserCheck, Trash2, ShieldAlert, ArrowRight, Save, Filter, X
 } from 'lucide-react';
 
 interface AttendanceRegisterProps {
@@ -150,8 +150,21 @@ export default function AttendanceRegister({
     }, 1500);
   };
 
+  // Date Range Filter State (Default to Today)
+  const todayStr = new Date().toISOString().split('T')[0];
+  const [filterStartDate, setFilterStartDate] = useState<string>(todayStr);
+  const [filterEndDate, setFilterEndDate] = useState<string>(todayStr);
+
   const sortedOperators = naturalSortWorkers(loomOperators);
-  const uniqueDates = Array.from(new Set(attendances.map(a => a.date))).sort((a, b) => b.localeCompare(a));
+
+  // Filter attendances by date range
+  const filteredAttendances = attendances.filter(a => {
+    if (filterStartDate && a.date < filterStartDate) return false;
+    if (filterEndDate && a.date > filterEndDate) return false;
+    return true;
+  });
+
+  const uniqueDates = Array.from(new Set(filteredAttendances.map(a => a.date))).sort((a, b) => b.localeCompare(a));
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -343,17 +356,105 @@ export default function AttendanceRegister({
       {/* History Log Column */}
       <div className="space-y-6">
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm max-h-[85vh] overflow-y-auto">
-          <div className="flex items-center gap-2.5 mb-5 pb-3 border-b border-slate-100">
-            <ClipboardList className="text-indigo-600 h-5 w-5" />
-            <h3 id="loom-att-log-title" className="font-bold text-slate-900 text-base">Register logs</h3>
+          <div className="space-y-3 mb-5 pb-3 border-b border-slate-100">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2.5">
+                <ClipboardList className="text-indigo-600 h-5 w-5" />
+                <h3 id="loom-att-log-title" className="font-bold text-slate-900 text-base">Register logs</h3>
+              </div>
+              <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-full border border-indigo-100">
+                {filteredAttendances.length} Logs
+              </span>
+            </div>
+
+            {/* Date Range Filter Controls */}
+            <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
+                <Filter className="h-3.5 w-3.5 text-indigo-600" />
+                <span>Filter by Date Range:</span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-[10px] font-bold text-slate-500 block mb-0.5">FROM DATE</label>
+                  <DateInput
+                    id="loom-att-filter-start-date"
+                    value={filterStartDate}
+                    onChange={setFilterStartDate}
+                    className="bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-slate-500 block mb-0.5">TO DATE</label>
+                  <DateInput
+                    id="loom-att-filter-end-date"
+                    value={filterEndDate}
+                    onChange={setFilterEndDate}
+                    className="bg-white"
+                  />
+                </div>
+              </div>
+
+              {/* Quick Preset Buttons */}
+              <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                <button
+                  type="button"
+                  id="loom-att-btn-filter-entry"
+                  onClick={() => {
+                    setFilterStartDate(selectedDate);
+                    setFilterEndDate(selectedDate);
+                  }}
+                  className={`text-[10px] font-bold px-2 py-1 rounded-md border transition-all cursor-pointer ${
+                    filterStartDate === selectedDate && filterEndDate === selectedDate
+                      ? 'bg-indigo-600 text-white border-indigo-700'
+                      : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
+                  }`}
+                >
+                  Entry Date ({formatDate(selectedDate)})
+                </button>
+
+                <button
+                  type="button"
+                  id="loom-att-btn-filter-today"
+                  onClick={() => {
+                    const today = new Date().toISOString().split('T')[0];
+                    setFilterStartDate(today);
+                    setFilterEndDate(today);
+                  }}
+                  className={`text-[10px] font-bold px-2 py-1 rounded-md border transition-all cursor-pointer ${
+                    filterStartDate === new Date().toISOString().split('T')[0] && filterEndDate === new Date().toISOString().split('T')[0]
+                      ? 'bg-indigo-600 text-white border-indigo-700'
+                      : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
+                  }`}
+                >
+                  Today
+                </button>
+
+                {(filterStartDate || filterEndDate) && (
+                  <button
+                    type="button"
+                    id="loom-att-btn-filter-clear"
+                    onClick={() => {
+                      setFilterStartDate('');
+                      setFilterEndDate('');
+                    }}
+                    className="text-[10px] font-bold px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-md transition-all flex items-center gap-1 cursor-pointer"
+                  >
+                    <X className="h-3 w-3" /> All Dates
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
 
           <div className="space-y-6">
             {uniqueDates.length === 0 ? (
-              <p className="text-sm text-slate-400 text-center py-6">No shift logs found.</p>
+              <p className="text-sm text-slate-400 text-center py-6">
+                {(filterStartDate || filterEndDate) ? 'No shift logs found in selected date range.' : 'No shift logs found.'}
+              </p>
             ) : (
               uniqueDates.map(dateStr => {
-                const dateRecords = attendances.filter(a => a.date === dateStr);
+                const dateRecords = filteredAttendances.filter(a => a.date === dateStr);
                 
                 const recordsWithOperators = dateRecords.map(a => {
                   return {

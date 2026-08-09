@@ -21,6 +21,7 @@ import MonthlySalarySheet from './components/MonthlySalarySheet';
 import MachineRegistry from './components/MachineRegistry';
 import ConfirmModal from './components/ConfirmModal';
 import LoginModal from './components/LoginModal';
+import ClearDataModal from './components/ClearDataModal';
 
 import { 
   Cpu, Users, Cpu as LoomIcon, Clock, Building, FileText, 
@@ -48,6 +49,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isConfirmResetOpen, setIsConfirmResetOpen] = useState(false);
+  const [isConfirmClearDataOpen, setIsConfirmClearDataOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
 
   // --- Authentication States ---
@@ -507,6 +509,45 @@ export default function App() {
     }
   };
 
+  const executeClearAllData = async () => {
+    setIsSyncing(true);
+    try {
+      await Promise.all([
+        reconcileWorkersToSupabase([]),
+        reconcileMachinesToSupabase(DEFAULT_MACHINES),
+        reconcileDailyWorksToSupabase([]),
+        reconcileAdminAttendancesToSupabase([]),
+        reconcileAttendancesToSupabase([]),
+        reconcileSalariesToSupabase([])
+      ]);
+
+      setWorkers([]);
+      setMachines(DEFAULT_MACHINES);
+      setDailyWorks([]);
+      setAdminAttendances([]);
+      setAttendances([]);
+      setSalaries([]);
+
+      try {
+        localStorage.setItem('texflow_workers', JSON.stringify([]));
+        localStorage.setItem('texflow_machines', JSON.stringify(DEFAULT_MACHINES));
+        localStorage.setItem('texflow_dailyWorks', JSON.stringify([]));
+        localStorage.setItem('texflow_adminAttendances', JSON.stringify([]));
+        localStorage.setItem('texflow_attendances', JSON.stringify([]));
+        localStorage.setItem('texflow_salaries', JSON.stringify([]));
+      } catch (e) {
+        console.warn('LocalStorage clear error:', e);
+      }
+
+      alert('All factory data has been successfully cleared!');
+    } catch (err: any) {
+      alert('Error clearing data: ' + (err?.message || err));
+    } finally {
+      setIsSyncing(false);
+      setIsConfirmClearDataOpen(false);
+    }
+  };
+
   return (
     <div className="min-h-screen flex flex-col md:flex-row bg-slate-50 text-slate-800 antialiased font-sans">
       
@@ -611,30 +652,32 @@ export default function App() {
           })}
         </nav>
 
-        {/* Sidebar Footer - Settings & Controls Quick Button */}
-        <div className="p-4 border-t border-slate-800 bg-slate-900/60">
-          <button
-            type="button"
-            id="open-settings-footer-btn"
-            onClick={() => setIsSettingsModalOpen(true)}
-            className="w-full flex items-center justify-between px-3.5 py-2.5 bg-slate-800 hover:bg-slate-750 text-slate-200 hover:text-white rounded-xl text-xs font-bold transition-all cursor-pointer border border-slate-700/80 shadow-xs group"
-          >
-            <div className="flex items-center gap-2.5">
-              <Settings className="h-4 w-4 text-indigo-400 group-hover:rotate-45 transition-transform duration-200" />
-              <span>Settings & Controls</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              {supabaseStatus === 'connected' ? (
-                <span className="flex h-2 w-2 relative">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                </span>
-              ) : (
-                <span className="inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
-              )}
-            </div>
-          </button>
-        </div>
+        {/* Sidebar Footer - Settings & Controls Quick Button (Admin Only) */}
+        {isAdmin && (
+          <div className="p-4 border-t border-slate-800 bg-slate-900/60">
+            <button
+              type="button"
+              id="open-settings-footer-btn"
+              onClick={() => setIsSettingsModalOpen(true)}
+              className="w-full flex items-center justify-between px-3.5 py-2.5 bg-slate-800 hover:bg-slate-750 text-slate-200 hover:text-white rounded-xl text-xs font-bold transition-all cursor-pointer border border-slate-700/80 shadow-xs group"
+            >
+              <div className="flex items-center gap-2.5">
+                <Settings className="h-4 w-4 text-indigo-400 group-hover:rotate-45 transition-transform duration-200" />
+                <span>Settings & Controls</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                {supabaseStatus === 'connected' ? (
+                  <span className="flex h-2 w-2 relative">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                  </span>
+                ) : (
+                  <span className="inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+                )}
+              </div>
+            </button>
+          </div>
+        )}
 
       </aside>
 
@@ -718,8 +761,8 @@ export default function App() {
 
       </main>
 
-      {/* Settings & System Controls Modal */}
-      {isSettingsModalOpen && (
+      {/* Settings & System Controls Modal (Admin Only) */}
+      {isSettingsModalOpen && isAdmin && (
         <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-xs flex justify-center items-center p-4 z-50 animate-in fade-in duration-150">
           <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-xl overflow-hidden animate-in zoom-in-95 duration-150">
             {/* Header */}
@@ -849,7 +892,45 @@ export default function App() {
                 </div>
               </div>
 
-              {/* 3. Windows Desktop App Installation */}
+              {/* 3. Clear Data & Database Reset */}
+              <div className="p-4 rounded-xl border border-rose-200 bg-rose-50/50 space-y-3">
+                <h4 className="text-xs font-extrabold text-rose-950 uppercase tracking-wider flex items-center gap-1.5">
+                  <Trash2 className="h-4 w-4 text-rose-600" /> Clear Data & Database Reset
+                </h4>
+                <p className="text-[11px] text-rose-900 font-medium">
+                  Perform complete factory reset or clear all employee, attendance, production, and salary records.
+                </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <button
+                    type="button"
+                    id="clear-all-data-btn"
+                    onClick={() => {
+                      setIsSettingsModalOpen(false);
+                      setIsConfirmClearDataOpen(true);
+                    }}
+                    className="flex items-center justify-center gap-2 px-3.5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Clear All Data
+                  </button>
+
+                  <button
+                    type="button"
+                    id="reset-demo-data-btn"
+                    onClick={() => {
+                      setIsSettingsModalOpen(false);
+                      handleResetToSeed();
+                    }}
+                    className="flex items-center justify-center gap-2 px-3.5 py-2.5 bg-white hover:bg-rose-100 text-rose-800 border border-rose-200 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-2xs"
+                  >
+                    <RefreshCw className="h-4 w-4 text-rose-600" />
+                    Reset Sample Demo Data
+                  </button>
+                </div>
+              </div>
+
+              {/* 4. Windows Desktop App Installation */}
               <div className="p-4 rounded-xl border border-indigo-200 bg-indigo-50/50 space-y-3">
                 <h4 className="text-xs font-extrabold text-indigo-950 uppercase tracking-wider flex items-center gap-1.5">
                   <Laptop className="h-4 w-4 text-indigo-600" /> Windows / Desktop Computer App
@@ -921,6 +1002,14 @@ export default function App() {
           type="warning"
           onConfirm={executeResetToSeed}
           onCancel={() => setIsConfirmResetOpen(false)}
+        />
+      )}
+
+      {isConfirmClearDataOpen && (
+        <ClearDataModal
+          isOpen={isConfirmClearDataOpen}
+          onClose={() => setIsConfirmClearDataOpen(false)}
+          onConfirmClear={executeClearAllData}
         />
       )}
 
