@@ -5,11 +5,11 @@
 
 import React, { useState, useEffect } from 'react';
 import { 
-  Worker, Machine, DailyWork, AdminAttendance, Attendance, Salary, UserSession 
+  Worker, Machine, DailyWork, AdminAttendance, Attendance, Salary, UserSession, Company 
 } from './types';
 import { 
   DEFAULT_MACHINES, SEED_WORKERS, SEED_DAILY_WORK, 
-  SEED_ADMIN_ATTENDANCE, SEED_LOOM_ATTENDANCE, SEED_SALARIES 
+  SEED_ADMIN_ATTENDANCE, SEED_LOOM_ATTENDANCE, SEED_SALARIES, DEFAULT_COMPANIES 
 } from './utils';
 import DashboardOverview from './components/DashboardOverview';
 import WorkersDirectory from './components/WorkersDirectory';
@@ -34,15 +34,17 @@ import {
 import { 
   testSupabaseConnection, 
   fetchSupabaseWorkers, fetchSupabaseMachines, fetchSupabaseDailyWorks,
-  fetchSupabaseAdminAttendances, fetchSupabaseAttendances, fetchSupabaseSalaries,
+  fetchSupabaseAdminAttendances, fetchSupabaseAttendances, fetchSupabaseSalaries, fetchSupabaseCompanies,
   createWorker, updateWorker, deleteWorker,
   createMachine, updateMachine, deleteMachine,
   createDailyWork, updateDailyWork, deleteDailyWork,
   createAdminAttendance, updateAdminAttendance, deleteAdminAttendance,
   createAttendance, updateAttendance, deleteAttendance,
   createSalary, updateSalary, deleteSalary,
+  createCompany, updateCompany, deleteCompany,
   reconcileWorkersToSupabase, reconcileMachinesToSupabase, reconcileDailyWorksToSupabase,
   reconcileAdminAttendancesToSupabase, reconcileAttendancesToSupabase, reconcileSalariesToSupabase,
+  reconcileCompaniesToSupabase,
   SUPABASE_SETUP_SQL, SUPABASE_URL
 } from './lib/supabase';
 
@@ -119,6 +121,7 @@ export default function App() {
   };
 
   // --- Database & Supabase Persistence States ---
+  const [companies, setCompanies] = useState<Company[]>(() => getLocalData('texflow_companies', DEFAULT_COMPANIES));
   const [workers, setWorkers] = useState<Worker[]>(() => getLocalData('texflow_workers', []));
   const [machines, setMachines] = useState<Machine[]>(() => getLocalData('texflow_machines', DEFAULT_MACHINES));
   const [dailyWorks, setDailyWorks] = useState<DailyWork[]>(() => getLocalData('texflow_dailyWorks', []));
@@ -127,6 +130,7 @@ export default function App() {
   const [salaries, setSalaries] = useState<Salary[]>(() => getLocalData('texflow_salaries', []));
 
   // Sync state to localStorage whenever it changes
+  useEffect(() => { localStorage.setItem('texflow_companies', JSON.stringify(companies)); }, [companies]);
   useEffect(() => { localStorage.setItem('texflow_workers', JSON.stringify(workers)); }, [workers]);
   useEffect(() => { localStorage.setItem('texflow_machines', JSON.stringify(machines)); }, [machines]);
   useEffect(() => { localStorage.setItem('texflow_dailyWorks', JSON.stringify(dailyWorks)); }, [dailyWorks]);
@@ -158,7 +162,8 @@ export default function App() {
       setSupabaseMsg('Connected & Live Synced with Supabase PostgreSQL');
 
       try {
-        const [spWorkers, spMachines, spWorks, spAdminAtt, spAtt, spSalaries] = await Promise.all([
+        const [spCompanies, spWorkers, spMachines, spWorks, spAdminAtt, spAtt, spSalaries] = await Promise.all([
+          fetchSupabaseCompanies().catch(() => null),
           fetchSupabaseWorkers().catch(() => null),
           fetchSupabaseMachines().catch(() => null),
           fetchSupabaseDailyWorks().catch(() => null),
@@ -167,12 +172,13 @@ export default function App() {
           fetchSupabaseSalaries().catch(() => null)
         ]);
 
-        const totalCount = (spWorkers?.length || 0) + (spMachines?.length || 0) + 
+        const totalCount = (spCompanies?.length || 0) + (spWorkers?.length || 0) + (spMachines?.length || 0) + 
                            (spWorks?.length || 0) + (spAdminAtt?.length || 0) + 
                            (spAtt?.length || 0) + (spSalaries?.length || 0);
 
         if (totalCount === 0) {
           // Initialize Supabase PostgreSQL database with current local state
+          const curCompanies = getLocalData('texflow_companies', DEFAULT_COMPANIES);
           const curWorkers = getLocalData('texflow_workers', []);
           const curMachines = getLocalData('texflow_machines', DEFAULT_MACHINES);
           const curWorks = getLocalData('texflow_dailyWorks', []);
@@ -181,6 +187,7 @@ export default function App() {
           const curSalaries = getLocalData('texflow_salaries', []);
 
           await Promise.all([
+            reconcileCompaniesToSupabase(curCompanies).catch(() => {}),
             reconcileWorkersToSupabase(curWorkers).catch(() => {}),
             reconcileMachinesToSupabase(curMachines).catch(() => {}),
             reconcileDailyWorksToSupabase(curWorks).catch(() => {}),
@@ -189,6 +196,7 @@ export default function App() {
             reconcileSalariesToSupabase(curSalaries).catch(() => {})
           ]);
         } else {
+          setCompanies(spCompanies && spCompanies.length > 0 ? spCompanies : DEFAULT_COMPANIES);
           setWorkers(spWorkers || []);
           setMachines(spMachines && spMachines.length > 0 ? spMachines : DEFAULT_MACHINES);
           setDailyWorks(spWorks || []);
@@ -209,6 +217,7 @@ export default function App() {
     setIsSyncing(true);
     try {
       await Promise.all([
+        reconcileCompaniesToSupabase(companies),
         reconcileWorkersToSupabase(workers),
         reconcileMachinesToSupabase(machines),
         reconcileDailyWorksToSupabase(dailyWorks),
@@ -230,6 +239,65 @@ export default function App() {
       alert(`Supabase Sync Error: ${err?.message || err}`);
     } finally {
       setIsSyncing(false);
+    }
+  };
+
+  // --- Company Operations ---
+  const handleAddCompany = async (name: string) => {
+    const newCompany: Company = {
+      companyId: `COMP-${Date.now()}`,
+      name
+    };
+    setCompanies(prev => [...prev, newCompany]);
+    try {
+      await createCompany(newCompany);
+    } catch (err: any) {
+      console.warn('Saved company locally, Supabase sync pending:', err?.message || err);
+    }
+  };
+
+  const handleUpdateCompany = async (companyId: string, newName: string) => {
+    const oldComp = companies.find(c => c.companyId === companyId);
+    if (!oldComp) return;
+    const oldName = oldComp.name;
+
+    setCompanies(prev => prev.map(c => c.companyId === companyId ? { ...c, name: newName } : c));
+
+    // Also update workers associated with this company name
+    if (oldName !== newName) {
+      setWorkers(prev => prev.map(w => {
+        if (w.companyName === oldName) {
+          const updated = { ...w, companyName: newName };
+          updateWorker(updated).catch(() => {});
+          return updated;
+        }
+        return w;
+      }));
+    }
+
+    try {
+      await updateCompany(companyId, newName);
+    } catch (err: any) {
+      console.warn('Updated company locally, Supabase sync pending:', err?.message || err);
+    }
+  };
+
+  const handleDeleteCompany = async (companyId: string) => {
+    const comp = companies.find(c => c.companyId === companyId);
+    if (!comp) return;
+
+    const associatedCount = workers.filter(w => w.companyName === comp.name).length;
+    if (associatedCount > 0) {
+      if (!window.confirm(`Warning: ${associatedCount} employees are registered under "${comp.name}". Are you sure you want to delete this company?`)) {
+        return;
+      }
+    }
+
+    setCompanies(prev => prev.filter(c => c.companyId !== companyId));
+    try {
+      await deleteCompany(companyId);
+    } catch (err: any) {
+      console.warn('Deleted company locally, Supabase sync pending:', err?.message || err);
     }
   };
 
@@ -290,6 +358,15 @@ export default function App() {
     setMachines(prev => prev.map(m => m.machineId === machineId ? updated : m));
     try {
       await updateMachine(updated);
+    } catch (err: any) {
+      console.warn('Updated machine locally, Supabase sync pending:', err?.message || err);
+    }
+  };
+
+  const handleUpdateMachine = async (updatedMachine: Machine) => {
+    setMachines(prev => prev.map(m => m.machineId === updatedMachine.machineId ? updatedMachine : m));
+    try {
+      await updateMachine(updatedMachine);
     } catch (err: any) {
       console.warn('Updated machine locally, Supabase sync pending:', err?.message || err);
     }
@@ -713,6 +790,7 @@ export default function App() {
           {activeTab === 'directory' && (
             <WorkersDirectory
               workers={workers}
+              companies={companies}
               onAddWorker={handleAddWorker}
               onUpdateWorker={handleUpdateWorker}
               onDeleteWorker={handleDeleteWorker}
@@ -724,6 +802,7 @@ export default function App() {
             <LoomDailyWork
               workers={workers}
               machines={machines}
+              companies={companies}
               dailyWorks={dailyWorks}
               onAddDailyWork={handleAddDailyWork}
               onDeleteDailyWork={handleDeleteDailyWork}
@@ -754,6 +833,7 @@ export default function App() {
           {activeTab === 'salary' && (
             <MonthlySalarySheet
               workers={workers}
+              companies={companies}
               salaries={salaries}
               dailyWorks={dailyWorks}
               adminAttendances={adminAttendances}
@@ -764,8 +844,10 @@ export default function App() {
           {activeTab === 'machines' && (
             <MachineRegistry
               machines={machines}
+              companies={companies}
               onToggleMachine={handleToggleMachine}
               onAddMachine={handleAddMachine}
+              onUpdateMachine={handleUpdateMachine}
               onDeleteMachine={handleDeleteMachine}
               isAdmin={isAdmin}
             />
@@ -773,6 +855,11 @@ export default function App() {
 
           {activeTab === 'settings' && (
             <SettingsPanel
+              companies={companies}
+              workers={workers}
+              onAddCompany={handleAddCompany}
+              onUpdateCompany={handleUpdateCompany}
+              onDeleteCompany={handleDeleteCompany}
               supabaseStatus={supabaseStatus}
               supabaseMsg={supabaseMsg}
               isSyncing={isSyncing}

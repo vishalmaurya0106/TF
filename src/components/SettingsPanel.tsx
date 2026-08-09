@@ -3,14 +3,21 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   Settings, Database, Download, Upload, Trash2, 
   RefreshCw, Laptop, Monitor, CheckCircle2, AlertCircle, 
-  ShieldCheck, HardDrive, Key, Server
+  ShieldCheck, HardDrive, Key, Server, Building2, Plus, 
+  Pencil, Check, X, Users
 } from 'lucide-react';
+import { Company, Worker } from '../types';
 
 interface SettingsPanelProps {
+  companies: Company[];
+  workers: Worker[];
+  onAddCompany: (name: string) => void;
+  onUpdateCompany: (companyId: string, newName: string) => void;
+  onDeleteCompany: (companyId: string) => void;
   supabaseStatus: string;
   supabaseMsg: string;
   isSyncing: boolean;
@@ -26,6 +33,11 @@ interface SettingsPanelProps {
 }
 
 export default function SettingsPanel({
+  companies,
+  workers,
+  onAddCompany,
+  onUpdateCompany,
+  onDeleteCompany,
   supabaseStatus,
   supabaseMsg,
   isSyncing,
@@ -39,6 +51,46 @@ export default function SettingsPanel({
   onShowInstallGuide,
   isAdmin
 }: SettingsPanelProps) {
+  const [newCompanyName, setNewCompanyName] = useState('');
+  const [editingCompanyId, setEditingCompanyId] = useState<string | null>(null);
+  const [editingCompanyName, setEditingCompanyName] = useState('');
+  const [companyError, setCompanyError] = useState('');
+
+  const handleCreateCompanySubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = newCompanyName.trim();
+    if (!trimmed) {
+      setCompanyError('Company name cannot be empty');
+      return;
+    }
+    if (companies.some(c => c.name.toLowerCase() === trimmed.toLowerCase())) {
+      setCompanyError('Company with this name already exists');
+      return;
+    }
+    setCompanyError('');
+    onAddCompany(trimmed);
+    setNewCompanyName('');
+  };
+
+  const handleStartEdit = (comp: Company) => {
+    setEditingCompanyId(comp.companyId);
+    setEditingCompanyName(comp.name);
+    setCompanyError('');
+  };
+
+  const handleSaveEdit = (companyId: string) => {
+    const trimmed = editingCompanyName.trim();
+    if (!trimmed) return;
+    if (companies.some(c => c.companyId !== companyId && c.name.toLowerCase() === trimmed.toLowerCase())) {
+      setCompanyError('Another company already has this name');
+      return;
+    }
+    setCompanyError('');
+    onUpdateCompany(companyId, trimmed);
+    setEditingCompanyId(null);
+    setEditingCompanyName('');
+  };
+
   if (!isAdmin) {
     return (
       <div className="bg-white p-8 rounded-2xl border border-slate-200 text-center max-w-lg mx-auto my-12 shadow-sm space-y-3">
@@ -101,6 +153,143 @@ export default function SettingsPanel({
 
       {/* Grid of Settings Modules */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+        {/* Company Management Card */}
+        <div className="bg-white rounded-2xl border border-indigo-200 shadow-sm p-6 space-y-4 md:col-span-2">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-indigo-100">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2.5 bg-indigo-50 rounded-xl text-indigo-600 border border-indigo-100">
+                <Building2 className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900">Company Management</h3>
+                <p className="text-xs text-slate-500">Add, edit, or delete companies for mandatory employee registration</p>
+              </div>
+            </div>
+            <span className="bg-indigo-50 text-indigo-700 border border-indigo-200 text-xs font-bold px-3 py-1 rounded-full self-start sm:self-auto">
+              Total: {companies.length} Companies
+            </span>
+          </div>
+
+          {/* Add Company Form */}
+          <form onSubmit={handleCreateCompanySubmit} className="flex flex-col sm:flex-row gap-2.5">
+            <div className="relative flex-1">
+              <input
+                type="text"
+                value={newCompanyName}
+                onChange={(e) => setNewCompanyName(e.target.value)}
+                placeholder="Enter Company Name (e.g. TexFlow Textiles)"
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:bg-white focus:ring-2 focus:ring-indigo-500 transition-all placeholder:text-slate-400"
+              />
+            </div>
+            <button
+              type="submit"
+              className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:scale-98 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-sm shrink-0 cursor-pointer"
+            >
+              <Plus className="h-4 w-4" />
+              <span>Add Company</span>
+            </button>
+          </form>
+
+          {companyError && (
+            <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 font-semibold flex items-center gap-2">
+              <AlertCircle className="h-4 w-4 shrink-0 text-rose-600" />
+              <span>{companyError}</span>
+            </div>
+          )}
+
+          {/* Company List */}
+          <div className="space-y-2 mt-2">
+            <label className="text-xs font-bold text-slate-600 uppercase tracking-wider block">
+              Registered Companies ({companies.length})
+            </label>
+            {companies.length === 0 ? (
+              <p className="text-xs text-slate-400 italic py-3 bg-slate-50 rounded-xl text-center border border-dashed border-slate-200">
+                No companies registered yet. Add a company above.
+              </p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {companies.map((comp) => {
+                  const empCount = workers.filter(w => w.companyName === comp.name).length;
+                  const isEditing = editingCompanyId === comp.companyId;
+
+                  return (
+                    <div
+                      key={comp.companyId}
+                      className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between gap-2 hover:border-indigo-200 transition-all"
+                    >
+                      {isEditing ? (
+                        <div className="flex items-center gap-1.5 w-full">
+                          <input
+                            type="text"
+                            value={editingCompanyName}
+                            onChange={(e) => setEditingCompanyName(e.target.value)}
+                            className="flex-1 px-2.5 py-1.5 bg-white border border-indigo-300 rounded-lg text-xs font-semibold focus:ring-2 focus:ring-indigo-500"
+                            autoFocus
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleSaveEdit(comp.companyId)}
+                            title="Save"
+                            className="p-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 cursor-pointer"
+                          >
+                            <Check className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingCompanyId(null);
+                              setEditingCompanyName('');
+                            }}
+                            title="Cancel"
+                            className="p-1.5 bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300 cursor-pointer"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="flex items-center gap-2 min-w-0">
+                            <div className="p-1.5 bg-indigo-100/60 text-indigo-700 rounded-lg shrink-0">
+                              <Building2 className="h-4 w-4" />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-xs font-bold text-slate-800 truncate" title={comp.name}>
+                                {comp.name}
+                              </p>
+                              <span className="text-[10px] text-slate-500 font-medium flex items-center gap-1">
+                                <Users className="h-3 w-3 text-slate-400" /> {empCount} Employees
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => handleStartEdit(comp)}
+                              title="Edit Company Name"
+                              className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all cursor-pointer"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => onDeleteCompany(comp.companyId)}
+                              title="Delete Company"
+                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all cursor-pointer"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
 
         {/* 1. Supabase Database Panel */}
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4 flex flex-col justify-between">

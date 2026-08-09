@@ -103,7 +103,7 @@ export default function SalarySlipPDF({ worker, salary, onClose }: SalarySlipPDF
             {/* Header */}
             <div className="flex justify-between items-start border-b-2 border-slate-950 pb-6">
               <div>
-                <h1 className="text-3xl font-extrabold text-slate-950 tracking-tight">TexFlow Textile Factory</h1>
+                <h1 className="text-3xl font-extrabold text-slate-950 tracking-tight">{worker.companyName || 'TexFlow Textile Factory'}</h1>
                 <p className="text-sm text-slate-500 font-medium mt-1">GIDC Textile Hub, Ring Road, Surat, Gujarat - 395002</p>
                 <p className="text-xs text-slate-400">Mobile: +91 98765 43210 | Email: accounts@texflow.com</p>
               </div>
@@ -131,6 +131,9 @@ export default function SalarySlipPDF({ worker, salary, onClose }: SalarySlipPDF
                   <User className="h-3.5 w-3.5 text-slate-500" /> Employee Details
                 </h3>
                 <div className="grid grid-cols-3 gap-y-2 text-sm">
+                  <span className="text-slate-500 font-medium">Company:</span>
+                  <span className="col-span-2 font-bold text-indigo-900">{worker.companyName || 'TexFlow Textiles Pvt Ltd'}</span>
+
                   <span className="text-slate-500 font-medium">Employee ID:</span>
                   <span className="col-span-2 font-mono font-bold text-slate-900">{worker.workerId}</span>
 

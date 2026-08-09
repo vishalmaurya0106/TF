@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useRef } from 'react';
-import { Worker, EmployeeType } from '../types';
+import { Worker, EmployeeType, Company } from '../types';
 import { naturalSortWorkers, formatCurrency, formatDate } from '../utils';
 import ConfirmModal from './ConfirmModal';
 import { DateInput } from './DateInput';
@@ -18,6 +18,7 @@ import {
 
 interface WorkersDirectoryProps {
   workers: Worker[];
+  companies?: Company[];
   onAddWorker: (worker: Worker) => void;
   onUpdateWorker: (worker: Worker) => void;
   onDeleteWorker: (workerId: string) => void;
@@ -26,6 +27,7 @@ interface WorkersDirectoryProps {
 
 export default function WorkersDirectory({ 
   workers, 
+  companies = [],
   onAddWorker, 
   onUpdateWorker, 
   onDeleteWorker,
@@ -34,6 +36,7 @@ export default function WorkersDirectory({
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState<'all' | EmployeeType>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('active');
+  const [companyFilter, setCompanyFilter] = useState<string>('all');
 
   // Excel File Input Ref
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -51,6 +54,7 @@ export default function WorkersDirectory({
   // Form Fields
   const [formWorkerId, setFormWorkerId] = useState('');
   const [formName, setFormName] = useState('');
+  const [formCompany, setFormCompany] = useState('');
   const [formMobile, setFormMobile] = useState('');
   const [formAddress, setFormAddress] = useState('');
   const [formJoiningDate, setFormJoiningDate] = useState('');
@@ -74,6 +78,7 @@ export default function WorkersDirectory({
   const resetForm = () => {
     setFormWorkerId('');
     setFormName('');
+    setFormCompany(companies.length > 0 ? companies[0].name : '');
     setFormMobile('');
     setFormAddress('');
     setFormJoiningDate(new Date().toISOString().split('T')[0]);
@@ -102,6 +107,7 @@ export default function WorkersDirectory({
     
     setFormWorkerId(worker.workerId);
     setFormName(worker.name);
+    setFormCompany(worker.companyName || (companies.length > 0 ? companies[0].name : ''));
     setFormMobile(worker.mobileNumber || '');
     setFormAddress(worker.address || '');
     setFormJoiningDate(worker.joiningDate || '');
@@ -121,7 +127,7 @@ export default function WorkersDirectory({
     setIsModalOpen(true);
   };
 
-  // Validate form fields (Mobile, Aadhaar, Bank details are OPTIONAL)
+  // Validate form fields (Company Selection is MANDATORY!)
   const validateForm = (): boolean => {
     const newErrors: { [key: string]: string } = {};
 
@@ -133,6 +139,10 @@ export default function WorkersDirectory({
 
     if (!formName.trim()) {
       newErrors.name = 'Employee Name is required';
+    }
+
+    if (!formCompany.trim()) {
+      newErrors.company = 'Company selection is mandatory';
     }
 
     if (!formRate.trim()) {
@@ -168,6 +178,7 @@ export default function WorkersDirectory({
     const workerPayload: Worker = {
       workerId: formWorkerId.trim(),
       name: formName.trim(),
+      companyName: formCompany.trim(),
       mobileNumber: formMobile.trim(),
       address: formAddress.trim(),
       joiningDate: formJoiningDate,
@@ -196,10 +207,12 @@ export default function WorkersDirectory({
 
   // --- Excel Sample Download ---
   const handleDownloadExcelSample = () => {
+    const defaultCompany = companies.length > 0 ? companies[0].name : "TexFlow Textiles Pvt Ltd";
     const sampleRows = [
       {
         "Employee ID": "101",
         "Full Name": "Ramesh Kumar",
+        "Company Name": defaultCompany,
         "Employee Type": "Worker",
         "Per Machine or Daily Rate": 350,
         "Monthly Salary": 15000,
@@ -216,6 +229,7 @@ export default function WorkersDirectory({
       {
         "Employee ID": "102",
         "Full Name": "Suresh Sharma",
+        "Company Name": defaultCompany,
         "Employee Type": "Admin Employee",
         "Per Machine or Daily Rate": 1200,
         "Monthly Salary": 30000,
@@ -275,6 +289,9 @@ export default function WorkersDirectory({
           
           if (!rawId || !rawName) return;
 
+          const companyName = getKey(['Company Name', 'Company', 'companyName', 'Company']) || 
+                              (companies.length > 0 ? companies[0].name : "TexFlow Textiles Pvt Ltd");
+
           const rawType = getKey(['Employee Type', 'Type', 'Designation']);
           const rawTypeLower = rawType.toLowerCase();
           const employeeType: EmployeeType = rawTypeLower.includes('admin') 
@@ -305,6 +322,7 @@ export default function WorkersDirectory({
           const workerObj: Worker = {
             workerId: rawId,
             name: rawName,
+            companyName: companyName,
             mobileNumber: mobile,
             address: address,
             joiningDate: joiningDate,
@@ -353,12 +371,13 @@ export default function WorkersDirectory({
   const filteredWorkers = workers.filter(w => {
     const matchesSearch = w.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
                           w.workerId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          w.mobileNumber.includes(searchTerm);
+                          (w.mobileNumber && w.mobileNumber.includes(searchTerm));
     const matchesType = typeFilter === 'all' || w.employeeType === typeFilter;
     const matchesStatus = statusFilter === 'all' || 
                           (statusFilter === 'active' && w.isActive) || 
                           (statusFilter === 'inactive' && !w.isActive);
-    return matchesSearch && matchesType && matchesStatus;
+    const matchesCompany = companyFilter === 'all' || w.companyName === companyFilter;
+    return matchesSearch && matchesType && matchesStatus && matchesCompany;
   });
 
   // CRITICAL REQUIREMENT: Sorted unki Employee ID (workerId) ke natural numeric order me
@@ -424,9 +443,9 @@ export default function WorkersDirectory({
       </div>
 
       {/* Filter Bar */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-white p-5 rounded-2xl border border-slate-150 shadow-sm">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 bg-white p-5 rounded-2xl border border-slate-150 shadow-sm">
         {/* Search */}
-        <div className="relative col-span-1 md:col-span-2">
+        <div className="relative sm:col-span-2 lg:col-span-2">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 h-4.5 w-4.5" />
           <input
             id="worker-search-input"
@@ -438,6 +457,23 @@ export default function WorkersDirectory({
           />
         </div>
 
+        {/* Company Filter */}
+        <div>
+          <select
+            id="worker-company-filter"
+            value={companyFilter}
+            onChange={(e) => setCompanyFilter(e.target.value)}
+            className="w-full px-3 py-2.5 bg-slate-50 hover:bg-slate-100 focus:bg-white border border-slate-200 focus:border-slate-400 rounded-xl outline-none text-sm transition-all font-medium"
+          >
+            <option value="all">All Companies ({companies.length})</option>
+            {companies.map((c) => (
+              <option key={c.companyId} value={c.name}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
         {/* Employee Type Filter */}
         <div>
           <select
@@ -446,10 +482,10 @@ export default function WorkersDirectory({
             onChange={(e) => setTypeFilter(e.target.value as any)}
             className="w-full px-3 py-2.5 bg-slate-50 hover:bg-slate-100 focus:bg-white border border-slate-200 focus:border-slate-400 rounded-xl outline-none text-sm transition-all font-medium"
           >
-            <option value="all">All Employee Types</option>
+            <option value="all">All Types</option>
             <option value="Worker">Loom Workers</option>
-            <option value="Admin Employee">Admin Employees</option>
-            <option value="Others">Others (Staff / Maintenance)</option>
+            <option value="Admin Employee">Admin Staff</option>
+            <option value="Others">Others</option>
           </select>
         </div>
 
@@ -476,6 +512,7 @@ export default function WorkersDirectory({
               <tr className="bg-slate-50 border-b border-slate-150 text-slate-400 text-xs font-bold uppercase tracking-wider">
                 <th className="px-6 py-4">Employee ID</th>
                 <th className="px-6 py-4">Name & Contact</th>
+                <th className="px-6 py-4">Company Name</th>
                 <th className="px-6 py-4">Employee Type</th>
                 <th className="px-6 py-4 text-right">Standard Rate</th>
                 <th className="px-6 py-4">Bank Details</th>
@@ -486,7 +523,7 @@ export default function WorkersDirectory({
             <tbody className="divide-y divide-slate-100 text-sm font-medium text-slate-700">
               {sortedWorkers.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center text-slate-400">
+                  <td colSpan={8} className="px-6 py-12 text-center text-slate-400">
                     <Users className="h-10 w-10 mx-auto text-slate-300 mb-3" />
                     No employees matching the criteria found.
                   </td>
@@ -501,7 +538,7 @@ export default function WorkersDirectory({
                       <div>
                         <div className="font-semibold text-slate-900">{worker.name}</div>
                         <div className="text-xs text-slate-400 flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
-                          <span className="flex items-center gap-1"><Smartphone className="h-3 w-3" /> {worker.mobileNumber}</span>
+                          <span className="flex items-center gap-1"><Smartphone className="h-3 w-3" /> {worker.mobileNumber || 'N/A'}</span>
                           {worker.joiningDate && (
                             <span className="text-[11px] text-slate-400 font-medium">
                               • Joined: {formatDate(worker.joiningDate)}
@@ -509,6 +546,12 @@ export default function WorkersDirectory({
                           )}
                         </div>
                       </div>
+                    </td>
+                    <td className="px-6 py-4.5">
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-indigo-50 text-indigo-800 border border-indigo-200">
+                        <Building2 className="h-3.5 w-3.5 text-indigo-600 shrink-0" />
+                        <span>{worker.companyName || 'Not Set'}</span>
+                      </span>
                     </td>
                     <td className="px-6 py-4.5">
                       <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ${
@@ -615,6 +658,56 @@ export default function WorkersDirectory({
               <div>
                 <h4 className="text-xs font-extrabold text-slate-400 uppercase tracking-widest mb-3 border-b pb-1">1. Company Profile</h4>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  
+                  {/* Company Name (Mandatory) */}
+                  <div className="col-span-1 sm:col-span-2">
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center gap-1.5">
+                      <Building2 className="h-4 w-4 text-indigo-600" />
+                      <span>Company Name</span>
+                      <span className="text-rose-500 font-extrabold">*</span>
+                    </label>
+                    {companies && companies.length > 0 ? (
+                      <select
+                        id="form-worker-company-select"
+                        value={formCompany}
+                        onChange={(e) => setFormCompany(e.target.value)}
+                        className={`w-full px-3.5 py-2.5 border rounded-xl outline-none text-sm font-semibold transition-all ${
+                          errors.company ? 'border-rose-500 bg-rose-50/50 text-rose-900' : 'border-slate-200 focus:border-indigo-500'
+                        }`}
+                        required
+                      >
+                        <option value="">-- Select Company --</option>
+                        {companies.map((c) => (
+                          <option key={c.companyId} value={c.name}>
+                            {c.name}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        id="form-worker-company-input"
+                        type="text"
+                        placeholder="Enter Company Name (e.g. TexFlow Textiles)"
+                        value={formCompany}
+                        onChange={(e) => setFormCompany(e.target.value)}
+                        className={`w-full px-3.5 py-2.5 border rounded-xl outline-none text-sm font-semibold transition-all ${
+                          errors.company ? 'border-rose-500 bg-rose-50/50' : 'border-slate-200 focus:border-indigo-500'
+                        }`}
+                        required
+                      />
+                    )}
+                    {errors.company ? (
+                      <p className="text-xs text-rose-600 mt-1 font-semibold flex items-center gap-1">
+                        <ShieldAlert className="h-3.5 w-3.5 shrink-0" />
+                        <span>{errors.company}</span>
+                      </p>
+                    ) : (
+                      <p className="text-[11px] text-slate-400 mt-1">
+                        Mandatory field. Selected company name will be associated with this employee's ledger & attendance.
+                      </p>
+                    )}
+                  </div>
+
                   {/* Worker ID */}
                   <div>
                     <label className="block text-xs font-bold text-slate-600 mb-1.5">Employee ID (workerId) <span className="text-red-500">*</span></label>

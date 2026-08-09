@@ -4,18 +4,19 @@
  */
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Worker, Machine, DailyWork } from '../types';
+import { Worker, Machine, DailyWork, Company } from '../types';
 import { formatCurrency, formatDate, naturalSortWorkers } from '../utils';
 import ConfirmModal from './ConfirmModal';
 import { DateInput } from './DateInput';
 import { 
   Cpu, Plus, Calendar, CheckSquare, Settings, 
-  Trash2, ClipboardList, Check, Landmark, User, Clock, AlertTriangle, Filter, X
+  Trash2, ClipboardList, Check, Landmark, User, Clock, AlertTriangle, Filter, X, Building2
 } from 'lucide-react';
 
 interface LoomDailyWorkProps {
   workers: Worker[];
   machines: Machine[];
+  companies?: Company[];
   dailyWorks: DailyWork[];
   onAddDailyWork: (work: DailyWork) => void;
   onDeleteDailyWork: (workId: string) => void;
@@ -25,6 +26,7 @@ interface LoomDailyWorkProps {
 export default function LoomDailyWork({
   workers,
   machines,
+  companies = [],
   dailyWorks,
   onAddDailyWork,
   onDeleteDailyWork,
@@ -372,23 +374,30 @@ export default function LoomDailyWork({
                 </div>
               ) : (
                 /* Grid representation of available machines */
-                <div className="grid grid-cols-5 sm:grid-cols-10 gap-2">
+                <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-2">
                   {availableMachines.map((machine) => {
                     const isSelected = selectedMachines.includes(machine.machineId);
+                    const compName = machine.companyName || 'TexFlow Textiles Pvt Ltd';
                     return (
                       <button
                         key={machine.machineId}
                         type="button"
                         id={`machine-btn-${machine.machineId.replace(' ', '-')}`}
                         onClick={() => handleToggleMachine(machine.machineId)}
-                        className={`h-11 rounded-xl font-mono text-xs font-bold flex flex-col justify-center items-center border transition-all cursor-pointer ${
+                        title={`${machine.machineId} - ${compName}`}
+                        className={`py-2 px-1 rounded-xl font-mono text-xs font-bold flex flex-col justify-center items-center border transition-all cursor-pointer ${
                           isSelected 
                             ? 'bg-indigo-600 text-white border-indigo-750 shadow-md ring-2 ring-indigo-100 ring-offset-1 scale-102' 
-                            : 'bg-slate-50 hover:bg-slate-100 text-slate-600 border-slate-200'
+                            : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
                         }`}
                       >
                         <span className="text-[9px] uppercase tracking-wider block opacity-70">Loom</span>
-                        <span className="text-xs mt-0.5">{machine.machineId.split(' ')[1]}</span>
+                        <span className="text-xs font-black mt-0.5">{machine.machineId.split(' ')[1] || machine.machineId}</span>
+                        <span className={`text-[8px] font-sans font-bold truncate max-w-full px-1 mt-0.5 rounded ${
+                          isSelected ? 'text-indigo-200' : 'text-slate-400'
+                        }`}>
+                          {compName.split(' ')[0]}
+                        </span>
                       </button>
                     );
                   })}

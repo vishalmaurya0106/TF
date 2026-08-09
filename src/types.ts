@@ -16,6 +16,11 @@ export interface UserSession {
   loggedInAt: string;
 }
 
+export interface Company {
+  companyId: string;
+  name: string;
+}
+
 export interface BankDetails {
   bankName: string;
   accountNumber: string;
@@ -34,6 +39,7 @@ export interface Worker {
   isActive: boolean;
   perMachineRate: number; // rate per loom for Loom Workers, standard daily rate for Admin staff
   employeeType: EmployeeType;
+  companyName: string; // Mandatory Company selection
   monthlySalary?: number; // Optional fixed monthly salary
   monthlyDays?: number; // Optional standard monthly working days (e.g. 26 or 30)
 }
@@ -41,6 +47,7 @@ export interface Worker {
 export interface Machine {
   machineId: string; // e.g. "Machine 01" to "Machine 30"
   isActive: boolean;
+  companyName?: string; // Company Name associated with the machine
 }
 
 export interface Attendance {

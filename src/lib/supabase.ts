@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { Worker, Machine, DailyWork, AdminAttendance, Attendance, Salary } from '../types';
+import { Worker, Machine, DailyWork, AdminAttendance, Attendance, Salary, Company } from '../types';
 
 export const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "https://sjkolutbcnbrnysipqun.supabase.co";
 export const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || "sb_publishable_bR-SNDMrlVI9m-J8vV9scw_a66pZ4qm";
@@ -35,6 +35,18 @@ export async function testSupabaseConnection(): Promise<{ success: boolean; mess
 // FETCH ALL FUNCTIONS FROM SUPABASE
 // ==========================================
 
+export async function fetchSupabaseCompanies(): Promise<Company[]> {
+  const { data, error } = await supabase.from('companies').select('*');
+  if (error) {
+    console.warn('Companies fetch notice:', error.message);
+    return [];
+  }
+  return (data || []).map((item: any) => ({
+    companyId: item.companyId,
+    name: item.name
+  }));
+}
+
 export async function fetchSupabaseWorkers(): Promise<Worker[]> {
   const { data, error } = await supabase.from('workers').select('*');
   if (error) throw new Error(`Workers fetch failed: ${error.message}`);
@@ -48,7 +60,8 @@ export async function fetchSupabaseWorkers(): Promise<Worker[]> {
     aadhaarNumber: item.aadhaarNumber || '',
     isActive: item.isActive ?? true,
     perMachineRate: Number(item.perMachineRate ?? 0),
-    employeeType: item.employeeType || 'Worker'
+    employeeType: item.employeeType || 'Worker',
+    companyName: item.companyName || ''
   }));
 }
 
@@ -57,7 +70,8 @@ export async function fetchSupabaseMachines(): Promise<Machine[]> {
   if (error) throw new Error(`Machines fetch failed: ${error.message}`);
   return (data || []).map((item: any) => ({
     machineId: item.machineId,
-    isActive: item.isActive ?? true
+    isActive: item.isActive ?? true,
+    companyName: item.companyName || ''
   }));
 }
 
@@ -118,6 +132,27 @@ export async function fetchSupabaseSalaries(): Promise<Salary[]> {
 }
 
 // ==========================================
+// ATOMIC CRUD FUNCTIONS FOR COMPANIES
+// ==========================================
+
+export async function createCompany(company: Company): Promise<void> {
+  const payload = { companyId: company.companyId, name: company.name };
+  const { error } = await supabase.from('companies').upsert([payload], { onConflict: 'companyId' });
+  if (error) throw new Error(`Create company failed: ${error.message}`);
+}
+
+export async function updateCompany(companyId: string, newName: string): Promise<void> {
+  const payload = { name: newName };
+  const { error } = await supabase.from('companies').update(payload).eq('companyId', companyId);
+  if (error) throw new Error(`Update company failed: ${error.message}`);
+}
+
+export async function deleteCompany(companyId: string): Promise<void> {
+  const { error } = await supabase.from('companies').delete().eq('companyId', companyId);
+  if (error) throw new Error(`Delete company failed: ${error.message}`);
+}
+
+// ==========================================
 // ATOMIC CRUD FUNCTIONS FOR WORKERS
 // ==========================================
 
@@ -132,7 +167,8 @@ export async function createWorker(worker: Worker): Promise<void> {
     aadhaarNumber: worker.aadhaarNumber,
     isActive: worker.isActive,
     perMachineRate: worker.perMachineRate,
-    employeeType: worker.employeeType
+    employeeType: worker.employeeType,
+    companyName: worker.companyName
   };
   const { error } = await supabase.from('workers').upsert([payload], { onConflict: 'workerId' });
   if (error) throw new Error(`Create worker failed: ${error.message}`);
@@ -148,7 +184,8 @@ export async function updateWorker(worker: Worker): Promise<void> {
     aadhaarNumber: worker.aadhaarNumber,
     isActive: worker.isActive,
     perMachineRate: worker.perMachineRate,
-    employeeType: worker.employeeType
+    employeeType: worker.employeeType,
+    companyName: worker.companyName
   };
   const { error } = await supabase.from('workers').update(payload).eq('workerId', worker.workerId);
   if (error) throw new Error(`Update worker failed: ${error.message}`);
@@ -164,13 +201,20 @@ export async function deleteWorker(workerId: string): Promise<void> {
 // ==========================================
 
 export async function createMachine(machine: Machine): Promise<void> {
-  const payload = { machineId: machine.machineId, isActive: machine.isActive };
+  const payload = { 
+    machineId: machine.machineId, 
+    isActive: machine.isActive,
+    companyName: machine.companyName || '' 
+  };
   const { error } = await supabase.from('machines').upsert([payload], { onConflict: 'machineId' });
   if (error) throw new Error(`Create machine failed: ${error.message}`);
 }
 
 export async function updateMachine(machine: Machine): Promise<void> {
-  const payload = { isActive: machine.isActive };
+  const payload = { 
+    isActive: machine.isActive,
+    companyName: machine.companyName || '' 
+  };
   const { error } = await supabase.from('machines').update(payload).eq('machineId', machine.machineId);
   if (error) throw new Error(`Update machine failed: ${error.message}`);
 }
@@ -328,6 +372,27 @@ export async function deleteSalary(salaryId: string): Promise<void> {
 // RECONCILIATION & SYNC FUNCTIONS
 // ==========================================
 
+export async function reconcileCompaniesToSupabase(companies: Company[]): Promise<void> {
+  const { data: remoteData, error: fetchErr } = await supabase.from('companies').select('companyId');
+  if (fetchErr) return;
+
+  const remoteIds = (remoteData || []).map((r: any) => r.companyId);
+  const currentIds = new Set(companies.map(c => c.companyId));
+  const idsToDelete = remoteIds.filter(id => !currentIds.has(id));
+
+  if (idsToDelete.length > 0) {
+    await supabase.from('companies').delete().in('companyId', idsToDelete);
+  }
+
+  if (companies.length > 0) {
+    const payload = companies.map(c => ({
+      companyId: c.companyId,
+      name: c.name
+    }));
+    await supabase.from('companies').upsert(payload, { onConflict: 'companyId' });
+  }
+}
+
 export async function reconcileWorkersToSupabase(workers: Worker[]): Promise<void> {
   const { data: remoteData, error: fetchErr } = await supabase.from('workers').select('workerId');
   if (fetchErr) throw new Error(`Sync workers fetch failed: ${fetchErr.message}`);
@@ -352,7 +417,8 @@ export async function reconcileWorkersToSupabase(workers: Worker[]): Promise<voi
       aadhaarNumber: w.aadhaarNumber,
       isActive: w.isActive,
       perMachineRate: w.perMachineRate,
-      employeeType: w.employeeType
+      employeeType: w.employeeType,
+      companyName: w.companyName
     }));
     const { error: upsertErr } = await supabase.from('workers').upsert(payload, { onConflict: 'workerId' });
     if (upsertErr) throw new Error(`Sync workers upsert failed: ${upsertErr.message}`);
@@ -375,7 +441,8 @@ export async function reconcileMachinesToSupabase(machines: Machine[]): Promise<
   if (machines.length > 0) {
     const payload = machines.map(m => ({
       machineId: m.machineId,
-      isActive: m.isActive
+      isActive: m.isActive,
+      companyName: m.companyName || ''
     }));
     const { error: upsertErr } = await supabase.from('machines').upsert(payload, { onConflict: 'machineId' });
     if (upsertErr) throw new Error(`Sync machines upsert failed: ${upsertErr.message}`);
@@ -504,6 +571,11 @@ export const syncSalariesToSupabase = reconcileSalariesToSupabase;
 
 export const SUPABASE_SETUP_SQL = `-- Run this in Supabase SQL Editor (https://supabase.com/dashboard/project/_/sql):
 
+CREATE TABLE IF NOT EXISTS companies (
+  "companyId" TEXT PRIMARY KEY,
+  name TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS workers (
   "workerId" TEXT PRIMARY KEY,
   name TEXT NOT NULL,
@@ -514,13 +586,19 @@ CREATE TABLE IF NOT EXISTS workers (
   "aadhaarNumber" TEXT,
   "isActive" BOOLEAN DEFAULT true,
   "perMachineRate" NUMERIC DEFAULT 0,
-  "employeeType" TEXT DEFAULT 'Worker'
+  "employeeType" TEXT DEFAULT 'Worker',
+  "companyName" TEXT
 );
+
+ALTER TABLE workers ADD COLUMN IF NOT EXISTS "companyName" TEXT;
 
 CREATE TABLE IF NOT EXISTS machines (
   "machineId" TEXT PRIMARY KEY,
-  "isActive" BOOLEAN DEFAULT true
+  "isActive" BOOLEAN DEFAULT true,
+  "companyName" TEXT
 );
+
+ALTER TABLE machines ADD COLUMN IF NOT EXISTS "companyName" TEXT;
 
 CREATE TABLE IF NOT EXISTS daily_works (
   "workId" TEXT PRIMARY KEY,
@@ -563,12 +641,16 @@ CREATE TABLE IF NOT EXISTS salaries (
 );
 
 -- Enable RLS & Public Read/Write Policies
+ALTER TABLE companies ENABLE ROW LEVEL SECURITY;
 ALTER TABLE workers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE machines ENABLE ROW LEVEL SECURITY;
 ALTER TABLE daily_works ENABLE ROW LEVEL SECURITY;
 ALTER TABLE admin_attendances ENABLE ROW LEVEL SECURITY;
 ALTER TABLE attendances ENABLE ROW LEVEL SECURITY;
 ALTER TABLE salaries ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Allow public companies" ON companies;
+CREATE POLICY "Allow public companies" ON companies FOR ALL USING (true) WITH CHECK (true);
 
 DROP POLICY IF EXISTS "Allow public workers" ON workers;
 CREATE POLICY "Allow public workers" ON workers FOR ALL USING (true) WITH CHECK (true);

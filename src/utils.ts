@@ -3,7 +3,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Worker, Machine, DailyWork, AdminAttendance, Attendance, Salary } from './types';
+import { Worker, Machine, DailyWork, AdminAttendance, Attendance, Salary, Company } from './types';
+
+export const DEFAULT_COMPANIES: Company[] = [
+  { companyId: 'comp-1', name: 'TexFlow Textiles Pvt Ltd' },
+  { companyId: 'comp-2', name: 'Vraj Weaving Mills' }
+];
 
 // Natural Sort Algorithm for Employee IDs
 export function naturalSortWorkers<T extends { workerId: string }>(items: T[]): T[] {
@@ -41,6 +46,7 @@ export const DEFAULT_MACHINES: Machine[] = Array.from({ length: 30 }, (_, i) => 
   return {
     machineId: `Machine ${idStr}`,
     isActive: true,
+    companyName: 'TexFlow Textiles Pvt Ltd',
   };
 });
 
@@ -61,7 +67,8 @@ export const SEED_WORKERS: Worker[] = [
     aadhaarNumber: "1234-5678-9012",
     isActive: true,
     perMachineRate: 350.50, // Per machine run rate
-    employeeType: "Worker"
+    employeeType: "Worker",
+    companyName: "TexFlow Textiles Pvt Ltd"
   },
   {
     workerId: "3",
@@ -78,7 +85,8 @@ export const SEED_WORKERS: Worker[] = [
     aadhaarNumber: "4321-8765-1209",
     isActive: true,
     perMachineRate: 320.25,
-    employeeType: "Worker"
+    employeeType: "Worker",
+    companyName: "TexFlow Textiles Pvt Ltd"
   },
   {
     workerId: "22",
@@ -95,7 +103,8 @@ export const SEED_WORKERS: Worker[] = [
     aadhaarNumber: "9876-5432-1111",
     isActive: true,
     perMachineRate: 340.00,
-    employeeType: "Worker"
+    employeeType: "Worker",
+    companyName: "Vraj Weaving Mills"
   },
   {
     workerId: "2",
@@ -112,7 +121,8 @@ export const SEED_WORKERS: Worker[] = [
     aadhaarNumber: "1122-3344-5566",
     isActive: true,
     perMachineRate: 1200.75, // Standard daily rate for Admin
-    employeeType: "Admin Employee"
+    employeeType: "Admin Employee",
+    companyName: "TexFlow Textiles Pvt Ltd"
   },
   {
     workerId: "10",
@@ -129,7 +139,8 @@ export const SEED_WORKERS: Worker[] = [
     aadhaarNumber: "5566-7788-9900",
     isActive: true,
     perMachineRate: 1550.00, // Standard daily rate for Admin
-    employeeType: "Admin Employee"
+    employeeType: "Admin Employee",
+    companyName: "TexFlow Textiles Pvt Ltd"
   }
 ];
 

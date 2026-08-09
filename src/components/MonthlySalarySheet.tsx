@@ -3,18 +3,19 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect } from 'react';
-import { Worker, Salary, DailyWork, AdminAttendance, PayrollStatus } from '../types';
+import { useState, useEffect, useMemo } from 'react';
+import { Worker, Salary, DailyWork, AdminAttendance, PayrollStatus, Company } from '../types';
 import { formatCurrency, naturalSortWorkers } from '../utils';
 import { FileText, Calendar, Check, Landmark, ArrowUpRight, 
   Settings, Percent, CreditCard, CheckCircle2, AlertCircle,
-  Search, Download
+  Search, Download, Building2, Filter, Layers, Calculator
 } from 'lucide-react';
 import SalarySlipPDF from './SalarySlipPDF';
 import { DateInput } from './DateInput';
 
 interface MonthlySalarySheetProps {
   workers: Worker[];
+  companies?: Company[];
   salaries: Salary[];
   dailyWorks: DailyWork[];
   adminAttendances: AdminAttendance[];
@@ -23,6 +24,7 @@ interface MonthlySalarySheetProps {
 
 export default function MonthlySalarySheet({
   workers,
+  companies = [],
   salaries,
   dailyWorks,
   adminAttendances,
@@ -31,6 +33,9 @@ export default function MonthlySalarySheet({
   
   // State for selected Month (defaults to current month YYYY-MM)
   const [selectedMonth, setSelectedMonth] = useState(() => new Date().toISOString().substring(0, 7));
+
+  // Company Filter State ('ALL' means Merged Companies Report)
+  const [selectedCompanyFilter, setSelectedCompanyFilter] = useState<string>('ALL');
 
   // State for launching Payslip PDF
   const [activeSlipWorker, setActiveSlipWorker] = useState<Worker | null>(null);
@@ -42,6 +47,21 @@ export default function MonthlySalarySheet({
   // Date Range State for Bank File Download
   const [exportStartDate, setExportStartDate] = useState('');
   const [exportEndDate, setExportEndDate] = useState('');
+
+  // Available unique company names
+  const availableCompanyNames = useMemo(() => {
+    const namesSet = new Set<string>();
+    companies.forEach(c => {
+      if (c.name) namesSet.add(c.name);
+    });
+    workers.forEach(w => {
+      if (w.companyName) namesSet.add(w.companyName);
+    });
+    if (namesSet.size === 0) {
+      namesSet.add('TexFlow Textiles Pvt Ltd');
+    }
+    return Array.from(namesSet);
+  }, [companies, workers]);
 
   // Helper to calculate date range for the selected month
   const getMonthDateRange = (monthStr: string) => {
@@ -120,17 +140,18 @@ export default function MonthlySalarySheet({
       return;
     }
 
-    // Headers exactly as requested
+    // Headers with Company Name
     const headers = [
       "Employee ID", 
       "Name", 
+      "Company Name",
       "Net Final Salary", 
       "Beneficiary Name", 
       "Account Number", 
       "IFSC Code"
     ];
     
-    const rows = sortedWorkers
+    const rows = filteredWorkers
       .map(worker => {
         // Calculate base salary for this worker in the specified date range
         let baseSalRange = 0;
@@ -173,6 +194,7 @@ export default function MonthlySalarySheet({
         return [
           item.worker.workerId,
           item.worker.name,
+          item.worker.companyName || 'TexFlow Textiles Pvt Ltd',
           item.netSalary,
           item.worker.bankDetails?.beneficiaryName || item.worker.name,
           formattedAcc,
@@ -200,7 +222,8 @@ export default function MonthlySalarySheet({
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', `Bank_Salary_Sheet_${exportStartDate}_to_${exportEndDate}.csv`);
+    const companyTag = selectedCompanyFilter === 'ALL' ? 'Merged_All_Companies' : selectedCompanyFilter.replace(/\s+/g, '_');
+    link.setAttribute('download', `Bank_Salary_Sheet_${companyTag}_${exportStartDate}_to_${exportEndDate}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -275,15 +298,53 @@ export default function MonthlySalarySheet({
   // Filter workers who actually have an entry in the selected month
   const workersWithMonthEntries = sortedWorkers.filter(hasEntryInMonth);
 
-  // Filter workers based on Name or Employee ID search
+  // Filter workers based on Company & Search criteria
   const filteredWorkers = workersWithMonthEntries.filter(worker => {
+    const workerComp = worker.companyName || 'TexFlow Textiles Pvt Ltd';
+
+    if (selectedCompanyFilter !== 'ALL' && workerComp !== selectedCompanyFilter) {
+      return false;
+    }
+
     const query = searchTerm.toLowerCase().trim();
     if (!query) return true;
     return (
       worker.name.toLowerCase().includes(query) ||
-      worker.workerId.toLowerCase().includes(query)
+      worker.workerId.toLowerCase().includes(query) ||
+      workerComp.toLowerCase().includes(query)
     );
   });
+
+  // Calculate summary totals for displayed workers
+  const summaryTotals = useMemo(() => {
+    let totalBase = 0;
+    let totalBonus = 0;
+    let totalAdvance = 0;
+    let totalDeductions = 0;
+    let totalNet = 0;
+    let paidCount = 0;
+
+    filteredWorkers.forEach(worker => {
+      const baseSal = calculateBaseSalary(worker);
+      const record = getSalaryRecord(worker.workerId, baseSal);
+      totalBase += baseSal;
+      totalBonus += (record.bonus || 0);
+      totalAdvance += (record.advance || 0);
+      totalDeductions += (record.deductions || 0);
+      totalNet += record.netSalary;
+      if (record.status === 'Paid') paidCount++;
+    });
+
+    return {
+      totalBase: parseFloat(totalBase.toFixed(2)),
+      totalBonus: parseFloat(totalBonus.toFixed(2)),
+      totalAdvance: parseFloat(totalAdvance.toFixed(2)),
+      totalDeductions: parseFloat(totalDeductions.toFixed(2)),
+      totalNet: parseFloat(totalNet.toFixed(2)),
+      paidCount,
+      pendingCount: filteredWorkers.length - paidCount
+    };
+  }, [filteredWorkers, dailyWorks, adminAttendances, salaries, selectedMonth]);
 
   return (
     <div className="space-y-6">
@@ -295,8 +356,8 @@ export default function MonthlySalarySheet({
             <FileText className="h-6 w-6" />
           </div>
           <div>
-            <h2 id="salary-sheet-title" className="text-xl font-bold text-slate-900">Monthly Salary ledger</h2>
-            <p className="text-sm text-slate-500 font-medium">Review monthly production & attendance accumulations and apply payroll adjustments</p>
+            <h2 id="salary-sheet-title" className="text-xl font-bold text-slate-900">Monthly Salary Ledger</h2>
+            <p className="text-sm text-slate-500 font-medium">Review monthly production & attendance accumulations, company reports, and apply payroll adjustments</p>
           </div>
         </div>
 
@@ -321,19 +382,47 @@ export default function MonthlySalarySheet({
         </div>
       </div>
 
-      {/* Search & Export Tools Section */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+      {/* Filter & Export Tools Section */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+        
+        {/* Company Filter & Merged Report Selector */}
+        <div className="flex flex-col justify-center space-y-2">
+          <label className="block text-xs font-extrabold text-slate-600 uppercase tracking-wider flex items-center gap-1.5">
+            <Building2 className="h-4 w-4 text-indigo-600" />
+            Company Filter / Merged Report
+          </label>
+          <select
+            id="salary-company-filter"
+            value={selectedCompanyFilter}
+            onChange={(e) => setSelectedCompanyFilter(e.target.value)}
+            className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all cursor-pointer"
+          >
+            <option value="ALL">🏢 Merged Report - All Companies</option>
+            {availableCompanyNames.map(cName => {
+              const count = workersWithMonthEntries.filter(w => (w.companyName || 'TexFlow Textiles Pvt Ltd') === cName).length;
+              return (
+                <option key={cName} value={cName}>
+                  🏭 {cName} ({count} Staff)
+                </option>
+              );
+            })}
+          </select>
+          <p className="text-[10px] text-slate-400 font-medium">
+            Select a specific company or choose Merged Report to combine all companies
+          </p>
+        </div>
+
         {/* Search Input Box */}
         <div className="flex flex-col justify-center space-y-2">
           <label className="block text-xs font-extrabold text-slate-600 uppercase tracking-wider">
-            Search Employee (Name or Employee ID)
+            Search Employee (Name or ID)
           </label>
           <div className="relative">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
             <input
               id="employee-ledger-search"
               type="text"
-              placeholder="Enter Employee ID (e.g. TFW-01) or Name..."
+              placeholder="Enter Employee ID or Name..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-800 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
@@ -401,12 +490,62 @@ export default function MonthlySalarySheet({
         </div>
       </div>
 
+      {/* Summary Metrics Bar */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex items-center gap-3">
+          <div className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl">
+            <Building2 className="h-5 w-5" />
+          </div>
+          <div>
+            <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Report View</p>
+            <p className="text-sm font-extrabold text-slate-900 truncate max-w-[160px]">
+              {selectedCompanyFilter === 'ALL' ? 'Merged All Companies' : selectedCompanyFilter}
+            </p>
+          </div>
+        </div>
+
+        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex items-center gap-3">
+          <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl">
+            <Calculator className="h-5 w-5" />
+          </div>
+          <div>
+            <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Total Net Payable</p>
+            <p className="text-sm font-mono font-black text-emerald-600">{formatCurrency(summaryTotals.totalNet)}</p>
+          </div>
+        </div>
+
+        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex items-center gap-3">
+          <div className="p-2.5 bg-blue-50 text-blue-600 rounded-xl">
+            <FileText className="h-5 w-5" />
+          </div>
+          <div>
+            <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Base Accumulation</p>
+            <p className="text-sm font-mono font-bold text-slate-900">{formatCurrency(summaryTotals.totalBase)}</p>
+          </div>
+        </div>
+
+        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex items-center gap-3">
+          <div className="p-2.5 bg-purple-50 text-purple-600 rounded-xl">
+            <Layers className="h-5 w-5" />
+          </div>
+          <div>
+            <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Active Staff / Paid</p>
+            <p className="text-sm font-bold text-slate-900">
+              {filteredWorkers.length} Staff <span className="text-xs text-emerald-600">({summaryTotals.paidCount} Paid)</span>
+            </p>
+          </div>
+        </div>
+      </div>
+
       {/* Main Table Card */}
       <div className="bg-white rounded-2xl border border-slate-150 shadow-sm overflow-hidden">
-        <div className="p-5 bg-slate-50 border-b border-slate-150 flex justify-between items-center">
-          <h3 className="font-extrabold text-xs text-slate-500 uppercase tracking-wider">
-            Payroll Ledger for {getMonthName(selectedMonth)} ({filteredWorkers.length} staff displayed)
-          </h3>
+        <div className="p-5 bg-slate-50 border-b border-slate-150 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+          <div className="flex items-center gap-2">
+            <Building2 className="h-4 w-4 text-indigo-600" />
+            <h3 className="font-extrabold text-xs text-slate-700 uppercase tracking-wider">
+              {selectedCompanyFilter === 'ALL' ? 'Merged Salary Ledger (All Companies)' : `${selectedCompanyFilter} Salary Ledger`} - {getMonthName(selectedMonth)} ({filteredWorkers.length} staff displayed)
+            </h3>
+          </div>
           <div className="flex gap-4 text-xs font-bold text-slate-500">
             <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-emerald-500"></span> Paid</span>
             <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-rose-400"></span> Pending</span>
@@ -418,6 +557,7 @@ export default function MonthlySalarySheet({
             <thead>
               <tr className="bg-slate-50 text-slate-400 text-xs font-bold uppercase tracking-wider border-b border-slate-100">
                 <th className="px-5 py-4">Employee</th>
+                <th className="px-5 py-4">Company Name</th>
                 <th className="px-5 py-4">Designation</th>
                 <th className="px-5 py-4 text-right">Base Accumulation</th>
                 <th className="px-5 py-4 text-center">Bonus (+)</th>
@@ -431,20 +571,21 @@ export default function MonthlySalarySheet({
             <tbody className="divide-y divide-slate-150 text-sm font-medium text-slate-700">
               {workersWithMonthEntries.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-5 py-12 text-center text-slate-400 font-semibold">
+                  <td colSpan={10} className="px-5 py-12 text-center text-slate-400 font-semibold">
                     No work or attendance entries recorded for {getMonthName(selectedMonth)}.
                   </td>
                 </tr>
               ) : filteredWorkers.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-5 py-12 text-center text-slate-400 font-semibold">
-                    No employees matching search criteria found in {getMonthName(selectedMonth)} entries.
+                  <td colSpan={10} className="px-5 py-12 text-center text-slate-400 font-semibold">
+                    No employees matching filter criteria found in {getMonthName(selectedMonth)} entries.
                   </td>
                 </tr>
               ) : (
                 filteredWorkers.map((worker) => {
                   const baseSal = calculateBaseSalary(worker);
                   const salaryRecord = getSalaryRecord(worker.workerId, baseSal);
+                  const companyName = worker.companyName || 'TexFlow Textiles Pvt Ltd';
 
                   return (
                     <tr key={worker.workerId} className="hover:bg-slate-50/50 transition-colors">
@@ -454,6 +595,14 @@ export default function MonthlySalarySheet({
                         <div className="text-[10px] text-slate-400 font-mono mt-0.5">
                           {worker.bankDetails?.bankName} {worker.bankDetails?.accountNumber ? `| Acc: ${worker.bankDetails.accountNumber}` : ''}
                         </div>
+                      </td>
+
+                      {/* Company Name Badge */}
+                      <td className="px-5 py-4.5">
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-indigo-50/80 text-indigo-700 border border-indigo-100/80 max-w-[180px] truncate">
+                          <Building2 className="h-3.5 w-3.5 text-indigo-500 shrink-0" />
+                          <span className="truncate">{companyName}</span>
+                        </span>
                       </td>
 
                       {/* Designation */}
