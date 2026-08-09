@@ -34,6 +34,8 @@ export interface Worker {
   isActive: boolean;
   perMachineRate: number; // rate per loom for Loom Workers, standard daily rate for Admin staff
   employeeType: EmployeeType;
+  monthlySalary?: number; // Optional fixed monthly salary
+  monthlyDays?: number; // Optional standard monthly working days (e.g. 26 or 30)
 }
 
 export interface Machine {

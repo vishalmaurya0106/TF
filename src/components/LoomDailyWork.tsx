@@ -54,6 +54,29 @@ export default function LoomDailyWork({
     });
   }, [loomWorkers, dailyWorks, selectedDate, selectedShift]);
 
+  // Set of machine IDs that already have a production entry on the selected date and shift
+  const assignedMachineIds = useMemo(() => {
+    const set = new Set<string>();
+    dailyWorks
+      .filter(dw => dw.date === selectedDate && (dw.shift || 'Day') === selectedShift)
+      .forEach(dw => {
+        if (Array.isArray(dw.selectedMachines)) {
+          dw.selectedMachines.forEach(mId => set.add(mId));
+        }
+      });
+    return set;
+  }, [dailyWorks, selectedDate, selectedShift]);
+
+  // Available loom machines that have NOT been recorded yet for this date and shift
+  const availableMachines = useMemo(() => {
+    return machines.filter(m => !assignedMachineIds.has(m.machineId));
+  }, [machines, assignedMachineIds]);
+
+  // Clean up selection if date, shift, or assigned machines change
+  useEffect(() => {
+    setSelectedMachines(prev => prev.filter(mId => !assignedMachineIds.has(mId)));
+  }, [assignedMachineIds]);
+
   // Error & Success Feedback State
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
@@ -104,10 +127,10 @@ export default function LoomDailyWork({
   };
 
   const handleSelectAllMachines = () => {
-    if (selectedMachines.length === machines.length) {
+    if (selectedMachines.length === availableMachines.length && availableMachines.length > 0) {
       setSelectedMachines([]);
     } else {
-      setSelectedMachines(machines.map(m => m.machineId));
+      setSelectedMachines(availableMachines.map(m => m.machineId));
     }
   };
 
@@ -320,33 +343,56 @@ export default function LoomDailyWork({
             {/* Loom Machines Grid Multi-Select */}
             <div>
               <div className="flex justify-between items-center mb-3">
-                <label className="block text-xs font-extrabold text-slate-600 uppercase tracking-wider">
-                  Assign active loom machines ({selectedMachines.length} selected)
+                <label className="block text-xs font-extrabold text-slate-600 uppercase tracking-wider flex items-center gap-2">
+                  <span>Assign active loom machines ({selectedMachines.length} selected)</span>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-100 normal-case font-mono">
+                    {availableMachines.length} / {machines.length} Available
+                  </span>
                 </label>
+
+                {availableMachines.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleSelectAllMachines}
+                    className="text-xs font-bold text-indigo-600 hover:text-indigo-800 transition-colors cursor-pointer"
+                  >
+                    {selectedMachines.length === availableMachines.length ? 'Deselect All' : 'Select All Available'}
+                  </button>
+                )}
               </div>
 
-              {/* Grid representation of 30 machines */}
-              <div className="grid grid-cols-5 sm:grid-cols-10 gap-2">
-                {machines.map((machine) => {
-                  const isSelected = selectedMachines.includes(machine.machineId);
-                  return (
-                    <button
-                      key={machine.machineId}
-                      type="button"
-                      id={`machine-btn-${machine.machineId.replace(' ', '-')}`}
-                      onClick={() => handleToggleMachine(machine.machineId)}
-                      className={`h-11 rounded-xl font-mono text-xs font-bold flex flex-col justify-center items-center border transition-all cursor-pointer ${
-                        isSelected 
-                          ? 'bg-indigo-600 text-white border-indigo-750 shadow-md ring-2 ring-indigo-100 ring-offset-1 scale-102' 
-                          : 'bg-slate-50 hover:bg-slate-100 text-slate-600 border-slate-200'
-                      }`}
-                    >
-                      <span className="text-[9px] uppercase tracking-wider block opacity-70">Loom</span>
-                      <span className="text-xs mt-0.5">{machine.machineId.split(' ')[1]}</span>
-                    </button>
-                  );
-                })}
-              </div>
+              {availableMachines.length === 0 ? (
+                <div className="p-6 text-center border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50/50">
+                  <Cpu className="h-8 w-8 text-slate-300 mx-auto mb-2" />
+                  <p className="text-slate-700 font-bold text-xs">All Loom Machines Recorded</p>
+                  <p className="text-slate-400 text-[11px] mt-0.5">
+                    All {machines.length} loom machines already have production entries logged for {selectedShift} Shift on {formatDate(selectedDate)}.
+                  </p>
+                </div>
+              ) : (
+                /* Grid representation of available machines */
+                <div className="grid grid-cols-5 sm:grid-cols-10 gap-2">
+                  {availableMachines.map((machine) => {
+                    const isSelected = selectedMachines.includes(machine.machineId);
+                    return (
+                      <button
+                        key={machine.machineId}
+                        type="button"
+                        id={`machine-btn-${machine.machineId.replace(' ', '-')}`}
+                        onClick={() => handleToggleMachine(machine.machineId)}
+                        className={`h-11 rounded-xl font-mono text-xs font-bold flex flex-col justify-center items-center border transition-all cursor-pointer ${
+                          isSelected 
+                            ? 'bg-indigo-600 text-white border-indigo-750 shadow-md ring-2 ring-indigo-100 ring-offset-1 scale-102' 
+                            : 'bg-slate-50 hover:bg-slate-100 text-slate-600 border-slate-200'
+                        }`}
+                      >
+                        <span className="text-[9px] uppercase tracking-wider block opacity-70">Loom</span>
+                        <span className="text-xs mt-0.5">{machine.machineId.split(' ')[1]}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             {/* Live Calculation Board & Submit Button */}

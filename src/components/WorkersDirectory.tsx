@@ -56,6 +56,8 @@ export default function WorkersDirectory({
   const [formJoiningDate, setFormJoiningDate] = useState('');
   const [formAadhaar, setFormAadhaar] = useState('');
   const [formRate, setFormRate] = useState('');
+  const [formMonthlySalary, setFormMonthlySalary] = useState('');
+  const [formMonthlyDays, setFormMonthlyDays] = useState('');
   const [formType, setFormType] = useState<EmployeeType>('Worker');
   const [formIsActive, setFormIsActive] = useState(true);
 
@@ -77,6 +79,8 @@ export default function WorkersDirectory({
     setFormJoiningDate(new Date().toISOString().split('T')[0]);
     setFormAadhaar('');
     setFormRate('');
+    setFormMonthlySalary('');
+    setFormMonthlyDays('');
     setFormType('Worker');
     setFormIsActive(true);
     setFormBankName('');
@@ -103,6 +107,8 @@ export default function WorkersDirectory({
     setFormJoiningDate(worker.joiningDate || '');
     setFormAadhaar(worker.aadhaarNumber || '');
     setFormRate(worker.perMachineRate.toString());
+    setFormMonthlySalary(worker.monthlySalary !== undefined ? worker.monthlySalary.toString() : '');
+    setFormMonthlyDays(worker.monthlyDays !== undefined ? worker.monthlyDays.toString() : '');
     setFormType(worker.employeeType);
     setFormIsActive(worker.isActive);
     
@@ -152,6 +158,12 @@ export default function WorkersDirectory({
     if (!validateForm()) return;
 
     const parsedRate = parseFloat(parseFloat(formRate).toFixed(2));
+    const parsedMonthlySalary = formMonthlySalary.trim() !== '' && !isNaN(parseFloat(formMonthlySalary))
+      ? parseFloat(parseFloat(formMonthlySalary).toFixed(2))
+      : undefined;
+    const parsedMonthlyDays = formMonthlyDays.trim() !== '' && !isNaN(parseFloat(formMonthlyDays))
+      ? parseFloat(formMonthlyDays)
+      : undefined;
     
     const workerPayload: Worker = {
       workerId: formWorkerId.trim(),
@@ -162,6 +174,8 @@ export default function WorkersDirectory({
       aadhaarNumber: formAadhaar.trim(),
       isActive: formIsActive,
       perMachineRate: parsedRate,
+      monthlySalary: parsedMonthlySalary,
+      monthlyDays: parsedMonthlyDays,
       employeeType: formType,
       bankDetails: {
         bankName: formBankName.trim(),
@@ -188,6 +202,8 @@ export default function WorkersDirectory({
         "Full Name": "Ramesh Kumar",
         "Employee Type": "Worker",
         "Per Machine or Daily Rate": 350,
+        "Monthly Salary": 15000,
+        "Monthly Days": 26,
         "Mobile Number": "9876543210",
         "Aadhaar Number": "123456789012",
         "Address": "Quarter 4, TexFlow Factory",
@@ -202,6 +218,8 @@ export default function WorkersDirectory({
         "Full Name": "Suresh Sharma",
         "Employee Type": "Admin Employee",
         "Per Machine or Daily Rate": 1200,
+        "Monthly Salary": 30000,
+        "Monthly Days": 30,
         "Mobile Number": "",
         "Aadhaar Number": "",
         "Address": "",
@@ -268,6 +286,11 @@ export default function WorkersDirectory({
           const rawRate = getKey(['Per Machine or Daily Rate', 'Rate', 'perMachineRate', 'Salary', 'Wage']);
           const parsedRate = parseFloat(rawRate) || 0;
 
+          const rawMonthlySalary = getKey(['Monthly Salary', 'monthlySalary', 'Monthly Fixed Salary']);
+          const rawMonthlyDays = getKey(['Monthly Days', 'monthlyDays', 'Working Days']);
+          const parsedMonthlySalary = rawMonthlySalary ? parseFloat(rawMonthlySalary) || undefined : undefined;
+          const parsedMonthlyDays = rawMonthlyDays ? parseFloat(rawMonthlyDays) || undefined : undefined;
+
           const mobile = getKey(['Mobile Number', 'Mobile', 'mobileNumber', 'Phone']);
           const aadhaar = getKey(['Aadhaar Number', 'Aadhaar', 'aadhaarNumber']);
           const address = getKey(['Address', 'address']);
@@ -288,6 +311,8 @@ export default function WorkersDirectory({
             aadhaarNumber: aadhaar,
             isActive: true,
             perMachineRate: parsedRate,
+            monthlySalary: parsedMonthlySalary,
+            monthlyDays: parsedMonthlyDays,
             employeeType: employeeType,
             bankDetails: {
               bankName: bankName,
@@ -501,6 +526,12 @@ export default function WorkersDirectory({
                       <div className="text-[10px] text-slate-400 font-sans font-semibold">
                         {worker.employeeType === 'Worker' ? 'per loom run' : 'per day standard'}
                       </div>
+                      {worker.monthlySalary !== undefined && worker.monthlySalary > 0 && (
+                        <div className="text-[10px] text-indigo-600 font-bold font-mono mt-0.5">
+                          Monthly: {formatCurrency(worker.monthlySalary)}
+                          {worker.monthlyDays ? ` (${worker.monthlyDays}d)` : ''}
+                        </div>
+                      )}
                     </td>
                     <td className="px-6 py-4.5">
                       <div className="max-w-[200px]">
@@ -636,6 +667,64 @@ export default function WorkersDirectory({
                         ? 'Operational rate calculated per active loom machine production run.' 
                         : 'Standard daily salary disbursed based on attendance registers.'}
                     </span>
+                  </div>
+
+                  {/* Optional Monthly Salary & Working Days Config */}
+                  <div className="col-span-1 sm:col-span-2 bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                        <Landmark className="h-3.5 w-3.5 text-indigo-600" />
+                        Monthly Fixed Salary & Days Config <span className="text-slate-400 font-normal">(Optional)</span>
+                      </span>
+                      <span className="text-[10px] text-slate-400 font-medium">Auto-calculates daily rate if entered</span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-600 mb-1">
+                          Monthly Salary (₹) <span className="text-slate-400 font-normal">(Optional)</span>
+                        </label>
+                        <input
+                          id="form-worker-monthly-salary"
+                          type="number"
+                          step="0.01"
+                          placeholder="e.g. 15000"
+                          value={formMonthlySalary}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setFormMonthlySalary(val);
+                            const numSal = parseFloat(val);
+                            const numDays = parseFloat(formMonthlyDays) || 26;
+                            if (numSal > 0 && numDays > 0 && (!formRate || parseFloat(formRate) === 0)) {
+                              setFormRate((numSal / numDays).toFixed(2));
+                            }
+                          }}
+                          className="w-full px-3 py-2 bg-white border border-slate-200 focus:border-slate-400 rounded-lg outline-none text-xs transition-all font-mono font-bold"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-slate-600 mb-1">
+                          Monthly Working Days <span className="text-slate-400 font-normal">(Optional)</span>
+                        </label>
+                        <input
+                          id="form-worker-monthly-days"
+                          type="number"
+                          placeholder="e.g. 26 or 30"
+                          value={formMonthlyDays}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setFormMonthlyDays(val);
+                            const numSal = parseFloat(formMonthlySalary);
+                            const numDays = parseFloat(val);
+                            if (numSal > 0 && numDays > 0) {
+                              setFormRate((numSal / numDays).toFixed(2));
+                            }
+                          }}
+                          className="w-full px-3 py-2 bg-white border border-slate-200 focus:border-slate-400 rounded-lg outline-none text-xs transition-all font-mono font-bold"
+                        />
+                      </div>
+                    </div>
                   </div>
 
                   {/* Date of Joining */}
