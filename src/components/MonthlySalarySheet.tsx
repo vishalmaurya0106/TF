@@ -6,12 +6,12 @@
 import { useState, useEffect } from 'react';
 import { Worker, Salary, DailyWork, AdminAttendance, PayrollStatus } from '../types';
 import { formatCurrency, naturalSortWorkers } from '../utils';
-import { 
-  FileText, Calendar, Check, Landmark, ArrowUpRight, 
+import { FileText, Calendar, Check, Landmark, ArrowUpRight, 
   Settings, Percent, CreditCard, CheckCircle2, AlertCircle,
   Search, Download
 } from 'lucide-react';
 import SalarySlipPDF from './SalarySlipPDF';
+import { DateInput } from './DateInput';
 
 interface MonthlySalarySheetProps {
   workers: Worker[];
@@ -332,12 +332,10 @@ export default function MonthlySalarySheet({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-[10px] font-bold text-slate-500 mb-1">Start Date</label>
-              <input
+              <DateInput
                 id="export-start-date"
-                type="date"
                 value={exportStartDate}
-                onChange={(e) => {
-                  const val = e.target.value;
+                onChange={(val) => {
                   if (!val) {
                     alert("Error: Date cannot be zero! Page is refreshing...");
                     window.location.reload();
@@ -345,17 +343,15 @@ export default function MonthlySalarySheet({
                   }
                   setExportStartDate(val);
                 }}
-                className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-800 focus:outline-hidden focus:border-indigo-500"
+                className="bg-white"
               />
             </div>
             <div>
               <label className="block text-[10px] font-bold text-slate-500 mb-1">End Date</label>
-              <input
+              <DateInput
                 id="export-end-date"
-                type="date"
                 value={exportEndDate}
-                onChange={(e) => {
-                  const val = e.target.value;
+                onChange={(val) => {
                   if (!val) {
                     alert("Error: Date cannot be zero! Page is refreshing...");
                     window.location.reload();
@@ -363,7 +359,7 @@ export default function MonthlySalarySheet({
                   }
                   setExportEndDate(val);
                 }}
-                className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-800 focus:outline-hidden focus:border-indigo-500"
+                className="bg-white"
               />
             </div>
           </div>

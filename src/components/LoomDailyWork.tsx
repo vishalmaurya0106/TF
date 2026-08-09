@@ -3,13 +3,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Worker, Machine, DailyWork } from '../types';
 import { formatCurrency, formatDate, naturalSortWorkers } from '../utils';
 import ConfirmModal from './ConfirmModal';
+import { DateInput } from './DateInput';
 import { 
   Cpu, Plus, Calendar, CheckSquare, Settings, 
-  Trash2, ClipboardList, Check, Landmark, User, Clock
+  Trash2, ClipboardList, Check, Landmark, User, Clock, AlertTriangle, Filter, X
 } from 'lucide-react';
 
 interface LoomDailyWorkProps {
@@ -31,7 +32,9 @@ export default function LoomDailyWork({
 }: LoomDailyWorkProps) {
   
   // Filter active loom operators
-  const loomWorkers = workers.filter(w => w.isActive && w.employeeType === 'Worker');
+  const loomWorkers = useMemo(() => {
+    return workers.filter(w => w.isActive && w.employeeType === 'Worker');
+  }, [workers]);
 
   // Form State
   const [selectedWorkerId, setSelectedWorkerId] = useState('');
@@ -39,6 +42,27 @@ export default function LoomDailyWork({
   const [selectedMachines, setSelectedMachines] = useState<string[]>([]);
   const [customRate, setCustomRate] = useState<number | null>(null);
   const [selectedShift, setSelectedShift] = useState<'Day' | 'Night'>('Day');
+
+  // Filter available operators who do NOT have a production entry for the selected date and shift
+  const availableWorkers = useMemo(() => {
+    return loomWorkers.filter(w => {
+      return !dailyWorks.some(dw => 
+        dw.workerId === w.workerId && 
+        dw.date === selectedDate && 
+        (dw.shift || 'Day') === selectedShift
+      );
+    });
+  }, [loomWorkers, dailyWorks, selectedDate, selectedShift]);
+
+  // Error & Success Feedback State
+  const [errorMessage, setErrorMessage] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
+
+  // Clear feedback messages when operator, date, or shift changes
+  useEffect(() => {
+    setErrorMessage('');
+    setSuccessMessage('');
+  }, [selectedWorkerId, selectedDate, selectedShift]);
 
   // Confirmation Modal State
   const [isConfirmDeleteOpen, setIsConfirmDeleteOpen] = useState(false);
@@ -59,14 +83,17 @@ export default function LoomDailyWork({
     setLiveWage(count * rate);
   }, [selectedMachines, selectedWorkerId, currentRate]);
 
-  // Set default first worker if available
+  // Automatically keep selectedWorkerId synced to an available worker
   useEffect(() => {
-    if (loomWorkers.length > 0 && !selectedWorkerId) {
-      // Natural sort first to pick the first one logical
-      const sortedLoomWorkers = naturalSortWorkers(loomWorkers);
-      setSelectedWorkerId(sortedLoomWorkers[0].workerId);
+    const sortedAvailable = naturalSortWorkers<Worker>(availableWorkers);
+    if (sortedAvailable.length > 0) {
+      if (!sortedAvailable.some(w => w.workerId === selectedWorkerId)) {
+        setSelectedWorkerId(sortedAvailable[0].workerId);
+      }
+    } else {
+      setSelectedWorkerId('');
     }
-  }, [loomWorkers, selectedWorkerId]);
+  }, [availableWorkers, selectedWorkerId]);
 
   const handleToggleMachine = (machineId: string) => {
     if (selectedMachines.includes(machineId)) {
@@ -86,12 +113,28 @@ export default function LoomDailyWork({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setErrorMessage('');
+    setSuccessMessage('');
+
     if (!selectedWorkerId) {
-      alert('Please select a Loom Operator first.');
+      setErrorMessage('Please select a Loom Operator first.');
       return;
     }
     if (selectedMachines.length === 0) {
-      alert('Please select at least one Loom Machine.');
+      setErrorMessage('Please select at least one Loom Machine.');
+      return;
+    }
+
+    // STRICT SHIFT CONSTRAINT: Check if entry already exists for this operator + date + shift
+    const existingShiftEntry = dailyWorks.find(dw => 
+      dw.workerId === selectedWorkerId && 
+      dw.date === selectedDate && 
+      (dw.shift || 'Day') === selectedShift
+    );
+
+    if (existingShiftEntry) {
+      const operatorDisplay = currentWorker ? `${currentWorker.workerId} - ${currentWorker.name}` : selectedWorkerId;
+      setErrorMessage(`Error: Production entry for ${operatorDisplay} on ${formatDate(selectedDate)} for ${selectedShift} Shift already exists! Second entry is not allowed.`);
       return;
     }
 
@@ -108,13 +151,27 @@ export default function LoomDailyWork({
 
     onAddDailyWork(payload);
     
+    setSuccessMessage(`Production entry saved successfully for ${currentWorker?.name || selectedWorkerId} (${selectedShift} Shift)!`);
+    setTimeout(() => setSuccessMessage(''), 3000);
+
     // Reset Form selections except worker & date to keep it easy for sequential entry
     setSelectedMachines([]);
     setCustomRate(null);
   };
 
+  // Filter Date Range State
+  const [filterStartDate, setFilterStartDate] = useState<string>('');
+  const [filterEndDate, setFilterEndDate] = useState<string>('');
+
+  // Filter dailyWorks based on date range
+  const filteredDailyWorks = dailyWorks.filter(dw => {
+    if (filterStartDate && dw.date < filterStartDate) return false;
+    if (filterEndDate && dw.date > filterEndDate) return false;
+    return true;
+  });
+
   // Group historical records by date, but sort records on same date by Worker ID (Natural Sort)
-  const uniqueDates = Array.from(new Set(dailyWorks.map(dw => dw.date))).sort((a, b) => b.localeCompare(a));
+  const uniqueDates = Array.from(new Set(filteredDailyWorks.map(dw => dw.date))).sort((a, b) => b.localeCompare(a));
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -134,25 +191,53 @@ export default function LoomDailyWork({
 
           <form id="production-entry-form" onSubmit={handleSubmit} className="space-y-6">
             
+            {/* Feedback Alerts */}
+            {errorMessage && (
+              <div className="p-4 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-xs font-bold flex items-center gap-3 shadow-xs">
+                <AlertTriangle className="h-5 w-5 text-rose-600 shrink-0" />
+                <span className="leading-relaxed">{errorMessage}</span>
+              </div>
+            )}
+
+            {successMessage && (
+              <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs font-bold flex items-center gap-3 shadow-xs">
+                <CheckSquare className="h-5 w-5 text-emerald-600 shrink-0" />
+                <span className="leading-relaxed">{successMessage}</span>
+              </div>
+            )}
+
+            {availableWorkers.length === 0 && loomWorkers.length > 0 && !successMessage && (
+              <div className="p-4 bg-indigo-50/80 border border-indigo-200 rounded-xl text-indigo-900 text-xs font-bold flex items-center gap-3 shadow-xs">
+                <CheckSquare className="h-5 w-5 text-indigo-600 shrink-0" />
+                <span className="leading-relaxed">All {loomWorkers.length} Loom Operators have already logged production entries for {selectedShift} Shift on {formatDate(selectedDate)}! Switch shift or date to add more entries.</span>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               {/* Date */}
               <div>
                 <label className="block text-xs font-bold text-slate-600 mb-1.5 flex items-center gap-1.5">
                   <Calendar className="h-3.5 w-3.5 text-slate-400" /> Production Date
                 </label>
-                <input
+                <DateInput
                   id="prod-date-input"
-                  type="date"
                   value={selectedDate}
-                  onChange={(e) => setSelectedDate(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 focus:bg-white focus:border-slate-400 rounded-xl outline-none text-sm transition-all font-medium"
+                  onChange={setSelectedDate}
+                  className="w-full"
                 />
               </div>
 
               {/* Loom Worker Select (Format strictly ID - Name as requested!) */}
               <div>
-                <label className="block text-xs font-bold text-slate-600 mb-1.5 flex items-center gap-1.5">
-                  <User className="h-3.5 w-3.5 text-slate-400" /> Select Loom Operator
+                <label className="block text-xs font-bold text-slate-600 mb-1.5 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <User className="h-3.5 w-3.5 text-slate-400" /> Select Loom Operator
+                  </span>
+                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${
+                    availableWorkers.length === 0 ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-600'
+                  }`}>
+                    {availableWorkers.length}/{loomWorkers.length} Pending
+                  </span>
                 </label>
                 <select
                   id="prod-worker-select"
@@ -161,12 +246,17 @@ export default function LoomDailyWork({
                     setSelectedWorkerId(e.target.value);
                     setCustomRate(null); // Reset custom rate to use default
                   }}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 focus:bg-white focus:border-slate-400 rounded-xl outline-none text-sm transition-all font-medium"
+                  disabled={availableWorkers.length === 0}
+                  className={`w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 focus:bg-white focus:border-slate-400 rounded-xl outline-none text-sm transition-all font-medium ${
+                    availableWorkers.length === 0 ? 'opacity-75 cursor-not-allowed text-slate-500' : 'cursor-pointer'
+                  }`}
                 >
                   {loomWorkers.length === 0 ? (
                     <option value="">No Active Operators Registered</option>
+                  ) : availableWorkers.length === 0 ? (
+                    <option value="">All operators entered for {selectedShift} Shift</option>
                   ) : (
-                    naturalSortWorkers(loomWorkers).map(w => (
+                    naturalSortWorkers<Worker>(availableWorkers).map(w => (
                       <option key={w.workerId} value={w.workerId}>
                         {/* CRITICAL FORMAT REQUIREMENT: ID - Name */}
                         {w.workerId} - {w.name}
@@ -287,17 +377,105 @@ export default function LoomDailyWork({
       {/* Production Logs History (Right 1 column in large screen) */}
       <div className="space-y-6">
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm max-h-[85vh] overflow-y-auto">
-          <div className="flex items-center gap-2.5 mb-5 pb-3 border-b border-slate-100">
-            <ClipboardList className="text-indigo-600 h-5 w-5" />
-            <h3 id="history-log-title" className="font-bold text-slate-900 text-base">Production logs</h3>
+          <div className="space-y-3 mb-5 pb-3 border-b border-slate-100">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2.5">
+                <ClipboardList className="text-indigo-600 h-5 w-5" />
+                <h3 id="history-log-title" className="font-bold text-slate-900 text-base">Production logs</h3>
+              </div>
+              <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-full border border-indigo-100">
+                {filteredDailyWorks.length} Logs
+              </span>
+            </div>
+
+            {/* Date Range Filter Controls */}
+            <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
+                <Filter className="h-3.5 w-3.5 text-indigo-600" />
+                <span>Filter by Date Range:</span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-[10px] font-bold text-slate-500 block mb-0.5">FROM DATE</label>
+                  <DateInput
+                    id="filter-start-date-input"
+                    value={filterStartDate}
+                    onChange={setFilterStartDate}
+                    className="bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-slate-500 block mb-0.5">TO DATE</label>
+                  <DateInput
+                    id="filter-end-date-input"
+                    value={filterEndDate}
+                    onChange={setFilterEndDate}
+                    className="bg-white"
+                  />
+                </div>
+              </div>
+
+              {/* Quick Preset Buttons */}
+              <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                <button
+                  type="button"
+                  id="btn-filter-entry-date"
+                  onClick={() => {
+                    setFilterStartDate(selectedDate);
+                    setFilterEndDate(selectedDate);
+                  }}
+                  className={`text-[10px] font-bold px-2 py-1 rounded-md border transition-all cursor-pointer ${
+                    filterStartDate === selectedDate && filterEndDate === selectedDate
+                      ? 'bg-indigo-600 text-white border-indigo-700'
+                      : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
+                  }`}
+                >
+                  Entry Date ({formatDate(selectedDate)})
+                </button>
+
+                <button
+                  type="button"
+                  id="btn-filter-today"
+                  onClick={() => {
+                    const today = new Date().toISOString().split('T')[0];
+                    setFilterStartDate(today);
+                    setFilterEndDate(today);
+                  }}
+                  className={`text-[10px] font-bold px-2 py-1 rounded-md border transition-all cursor-pointer ${
+                    filterStartDate === new Date().toISOString().split('T')[0] && filterEndDate === new Date().toISOString().split('T')[0]
+                      ? 'bg-indigo-600 text-white border-indigo-700'
+                      : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
+                  }`}
+                >
+                  Today
+                </button>
+
+                {(filterStartDate || filterEndDate) && (
+                  <button
+                    type="button"
+                    id="btn-filter-clear"
+                    onClick={() => {
+                      setFilterStartDate('');
+                      setFilterEndDate('');
+                    }}
+                    className="text-[10px] font-bold px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-md transition-all flex items-center gap-1 cursor-pointer"
+                  >
+                    <X className="h-3 w-3" /> All Dates
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
 
           <div className="space-y-6">
             {uniqueDates.length === 0 ? (
-              <p className="text-sm text-slate-400 text-center py-6">No production logs recorded yet.</p>
+              <p className="text-sm text-slate-400 text-center py-6">
+                {(filterStartDate || filterEndDate) ? 'No logs found in selected date range.' : 'No production logs recorded yet.'}
+              </p>
             ) : (
               uniqueDates.map(dateStr => {
-                const dateWorks = dailyWorks.filter(dw => dw.date === dateStr);
+                const dateWorks = filteredDailyWorks.filter(dw => dw.date === dateStr);
                 
                 // Grouping is done by date. For each date, sort workers by Natural Sort on workerId
                 // We'll map each work entry to its worker detail to sort correctly

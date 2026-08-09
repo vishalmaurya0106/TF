@@ -7,8 +7,9 @@ import { useState, useEffect } from 'react';
 import { Worker, AdminAttendance, AttendanceStatus } from '../types';
 import { formatCurrency, formatDate, naturalSortWorkers } from '../utils';
 import ConfirmModal from './ConfirmModal';
+import { DateInput } from './DateInput';
 import { 
-  Building, UserCheck, Calendar, ClipboardCheck, 
+  Building, UserCheck, ClipboardCheck, 
   Trash2, Plus, Info, Check, Sparkles, Save 
 } from 'lucide-react';
 
@@ -153,16 +154,12 @@ export default function AdminAttendanceRegister({
 
             {/* Date Select & Batch Save */}
             <div className="flex flex-wrap items-center gap-2.5">
-              <div className="flex items-center gap-2 bg-slate-50 border px-3 py-2 rounded-xl">
-                <Calendar className="h-4.5 w-4.5 text-slate-400" />
-                <input
-                  id="admin-att-date-input"
-                  type="date"
-                  value={selectedDate}
-                  onChange={(e) => setSelectedDate(e.target.value)}
-                  className="bg-transparent border-none outline-none text-sm font-bold text-slate-800"
-                />
-              </div>
+              <DateInput
+                id="admin-att-date-input"
+                value={selectedDate}
+                onChange={setSelectedDate}
+                className="w-40 shadow-2xs"
+              />
 
               {sortedAdmins.length > 0 && (
                 <button

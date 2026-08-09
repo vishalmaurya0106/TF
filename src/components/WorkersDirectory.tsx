@@ -5,8 +5,9 @@
 
 import React, { useState, useRef } from 'react';
 import { Worker, EmployeeType } from '../types';
-import { naturalSortWorkers, formatCurrency } from '../utils';
+import { naturalSortWorkers, formatCurrency, formatDate } from '../utils';
 import ConfirmModal from './ConfirmModal';
+import { DateInput } from './DateInput';
 import * as XLSX from 'xlsx';
 import { 
   Users, UserPlus, Pencil, Eye, ToggleLeft, ToggleRight, 
@@ -468,8 +469,13 @@ export default function WorkersDirectory({
                     <td className="px-6 py-4.5">
                       <div>
                         <div className="font-semibold text-slate-900">{worker.name}</div>
-                        <div className="text-xs text-slate-400 flex items-center gap-1 mt-0.5">
-                          <Smartphone className="h-3 w-3" /> {worker.mobileNumber}
+                        <div className="text-xs text-slate-400 flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
+                          <span className="flex items-center gap-1"><Smartphone className="h-3 w-3" /> {worker.mobileNumber}</span>
+                          {worker.joiningDate && (
+                            <span className="text-[11px] text-slate-400 font-medium">
+                              • Joined: {formatDate(worker.joiningDate)}
+                            </span>
+                          )}
                         </div>
                       </div>
                     </td>
@@ -626,16 +632,12 @@ export default function WorkersDirectory({
                   {/* Date of Joining */}
                   <div>
                     <label className="block text-xs font-bold text-slate-600 mb-1.5">Joining Date</label>
-                    <div className="relative">
-                      <CalendarDays className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 h-4.5 w-4.5" />
-                      <input
-                        id="form-worker-date"
-                        type="date"
-                        value={formJoiningDate}
-                        onChange={(e) => setFormJoiningDate(e.target.value)}
-                        className="w-full px-3.5 py-2.5 border border-slate-200 focus:border-slate-400 rounded-xl outline-none text-sm transition-all font-medium"
-                      />
-                    </div>
+                    <DateInput
+                      id="form-worker-date"
+                      value={formJoiningDate}
+                      onChange={setFormJoiningDate}
+                      className="w-full bg-white"
+                    />
                   </div>
                 </div>
               </div>

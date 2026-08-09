@@ -6,9 +6,10 @@
 import { useState } from 'react';
 import { Worker, Machine, DailyWork, AdminAttendance, Salary } from '../types';
 import { formatCurrency, formatDate } from '../utils';
+import { DateInput } from './DateInput';
 import { 
   Cpu, Users, TrendingUp, IndianRupee, Clock, 
-  CheckCircle, AlertCircle, Play, Layers, Calendar, Landmark
+  CheckCircle, AlertCircle, Play, Layers, Landmark
 } from 'lucide-react';
 
 interface DashboardOverviewProps {
@@ -91,7 +92,7 @@ export default function DashboardOverview({
 
     return {
       dateStr: date,
-      shortLabel: date.substring(8, 10) + ' ' + new Date(date).toLocaleDateString('en-US', { month: 'short' }),
+      shortLabel: formatDate(date),
       loomWages,
       adminWages,
       totalWages: loomWages + adminWages
@@ -111,14 +112,15 @@ export default function DashboardOverview({
         </div>
         
         {/* Date Selector */}
-        <div className="flex items-center gap-2 bg-slate-50 border px-3 py-2 rounded-xl">
-          <Calendar className="h-4.5 w-4.5 text-slate-400" />
-          <input
+        <div className="flex items-center gap-2">
+          <label htmlFor="dash-date-input" className="text-xs font-bold text-slate-500 whitespace-nowrap">
+            Select Date:
+          </label>
+          <DateInput
             id="dash-date-input"
-            type="date"
             value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
-            className="bg-transparent border-none outline-none text-sm font-bold text-slate-800"
+            onChange={setSelectedDate}
+            className="w-40 shadow-2xs"
           />
         </div>
       </div>

@@ -22,17 +22,16 @@ export function formatCurrency(amount: number | string): string {
   return `₹${parsed.toFixed(2)}`;
 }
 
-// Helper to format date cleanly
+// Helper to format date cleanly as DD/MM/YYYY
 export function formatDate(dateStr: string): string {
   if (!dateStr) return '';
-  const [year, month, day] = dateStr.split('-');
-  if (!year || !month || !day) return dateStr;
-  const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
-  return date.toLocaleDateString('en-IN', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  });
+  const cleanDateStr = dateStr.includes('T') ? dateStr.split('T')[0] : dateStr;
+  const parts = cleanDateStr.split('-');
+  if (parts.length === 3 && parts[0].length === 4) {
+    const [year, month, day] = parts;
+    return `${day.padStart(2, '0')}/${month.padStart(2, '0')}/${year}`;
+  }
+  return dateStr;
 }
 
 // Generate the 30 Loom Machines
