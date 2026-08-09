@@ -130,8 +130,12 @@ export default function AdminAttendanceRegister({
   // Sorted admins list by Employee ID (Natural Sort)
   const sortedAdmins = naturalSortWorkers(adminStaff);
 
+  // Filter adminAttendances to only include records for Admin Employee staff
+  const adminWorkerIds = new Set(workers.filter(w => w.employeeType === 'Admin Employee').map(w => w.workerId));
+  const adminOnlyAttendances = adminAttendances.filter(a => adminWorkerIds.has(a.workerId));
+
   // Group logs by date, sort descending, and then natural sort admins
-  const uniqueDates = Array.from(new Set(adminAttendances.map(a => a.date))).sort((a, b) => b.localeCompare(a));
+  const uniqueDates = Array.from(new Set(adminOnlyAttendances.map(a => a.date))).sort((a, b) => b.localeCompare(a));
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -322,7 +326,7 @@ export default function AdminAttendanceRegister({
               <p className="text-sm text-slate-400 text-center py-6">No attendance records found.</p>
             ) : (
               uniqueDates.map(dateStr => {
-                const dateRecords = adminAttendances.filter(a => a.date === dateStr);
+                const dateRecords = adminOnlyAttendances.filter(a => a.date === dateStr);
                 
                 // Grouping is done by date. For each date, sort records by Natural Sort of workerId
                 const recordsWithAdmins = dateRecords.map(a => {

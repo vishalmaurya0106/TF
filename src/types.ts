@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-export type EmployeeType = 'Worker' | 'Admin Employee';
+export type EmployeeType = 'Worker' | 'Admin Employee' | 'Others';
 export type AttendanceStatus = 'Present' | 'Absent' | 'Half-Day';
 export type PayrollStatus = 'Pending' | 'Paid';
 

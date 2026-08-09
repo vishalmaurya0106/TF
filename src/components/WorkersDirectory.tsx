@@ -258,7 +258,12 @@ export default function WorkersDirectory({
           if (!rawId || !rawName) return;
 
           const rawType = getKey(['Employee Type', 'Type', 'Designation']);
-          const employeeType: EmployeeType = (rawType.toLowerCase().includes('admin')) ? 'Admin Employee' : 'Worker';
+          const rawTypeLower = rawType.toLowerCase();
+          const employeeType: EmployeeType = rawTypeLower.includes('admin') 
+            ? 'Admin Employee' 
+            : rawTypeLower.includes('other') 
+              ? 'Others' 
+              : 'Worker';
 
           const rawRate = getKey(['Per Machine or Daily Rate', 'Rate', 'perMachineRate', 'Salary', 'Wage']);
           const parsedRate = parseFloat(rawRate) || 0;
@@ -419,6 +424,7 @@ export default function WorkersDirectory({
             <option value="all">All Employee Types</option>
             <option value="Worker">Loom Workers</option>
             <option value="Admin Employee">Admin Employees</option>
+            <option value="Others">Others (Staff / Maintenance)</option>
           </select>
         </div>
 
@@ -483,7 +489,9 @@ export default function WorkersDirectory({
                       <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ${
                         worker.employeeType === 'Worker' 
                           ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' 
-                          : 'bg-purple-50 text-purple-700 border border-purple-200'
+                          : worker.employeeType === 'Admin Employee'
+                          ? 'bg-purple-50 text-purple-700 border border-purple-200'
+                          : 'bg-amber-50 text-amber-800 border border-amber-200'
                       }`}>
                         {worker.employeeType}
                       </span>
@@ -604,6 +612,7 @@ export default function WorkersDirectory({
                     >
                       <option value="Worker">Loom operator (Loom Worker)</option>
                       <option value="Admin Employee">Administrative employee (Admin)</option>
+                      <option value="Others">Others (Maintenance / Helpers / Staff)</option>
                     </select>
                   </div>
 

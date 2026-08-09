@@ -40,6 +40,7 @@ export default function DashboardOverview({
   const activeEmployees = workers.filter(w => w.isActive).length;
   const loomOperators = workers.filter(w => w.employeeType === 'Worker').length;
   const adminStaff = workers.filter(w => w.employeeType === 'Admin Employee').length;
+  const othersStaff = workers.filter(w => w.employeeType === 'Others').length;
 
   // Total machines logged in production today
   const todaysProduction = dailyWorks.filter(dw => dw.date === selectedDate);
@@ -148,7 +149,7 @@ export default function DashboardOverview({
           <div className="space-y-1">
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Staff strength</span>
             <span className="text-2xl font-mono font-bold text-slate-900 block">{activeEmployees} <span className="text-xs text-slate-400 font-normal">/ {totalEmployees} active</span></span>
-            <span className="text-[10px] text-slate-500 font-semibold block">Operators: {loomOperators} | Admins: {adminStaff}</span>
+            <span className="text-[10px] text-slate-500 font-semibold block">Operators: {loomOperators} | Admins: {adminStaff} | Others: {othersStaff}</span>
           </div>
           <div className="p-3 bg-purple-50 text-purple-600 rounded-xl">
             <Users className="h-6 w-6" />

@@ -16,6 +16,7 @@ import WorkersDirectory from './components/WorkersDirectory';
 import LoomDailyWork from './components/LoomDailyWork';
 import AttendanceRegister from './components/AttendanceRegister';
 import AdminAttendanceRegister from './components/AdminAttendanceRegister';
+import OtherAttendanceRegister from './components/OtherAttendanceRegister';
 import MonthlySalarySheet from './components/MonthlySalarySheet';
 import MachineRegistry from './components/MachineRegistry';
 import ConfirmModal from './components/ConfirmModal';
@@ -584,6 +585,7 @@ export default function App() {
             { id: 'directory', label: 'Employees Directory', icon: <Users className="h-4.5 w-4.5" /> },
             { id: 'production', label: 'Loom Production', icon: <LoomIcon className="h-4.5 w-4.5" /> },
             { id: 'admin-att', label: 'Admin attendance', icon: <Building className="h-4.5 w-4.5" /> },
+            { id: 'other-att', label: 'Other Attendance', icon: <Users className="h-4.5 w-4.5 text-amber-400" /> },
             { id: 'salary', label: 'Monthly Salary ledger', icon: <FileText className="h-4.5 w-4.5" /> },
             { id: 'machines', label: 'Loom machines', icon: <Cpu className="h-4.5 w-4.5 text-indigo-400" /> },
           ].map((tab) => {
@@ -675,6 +677,16 @@ export default function App() {
 
           {activeTab === 'admin-att' && (
             <AdminAttendanceRegister
+              workers={workers}
+              adminAttendances={adminAttendances}
+              onAddAdminAttendance={handleAddAdminAttendance}
+              onDeleteAdminAttendance={handleDeleteAdminAttendance}
+              isAdmin={isAdmin}
+            />
+          )}
+
+          {activeTab === 'other-att' && (
+            <OtherAttendanceRegister
               workers={workers}
               adminAttendances={adminAttendances}
               onAddAdminAttendance={handleAddAdminAttendance}

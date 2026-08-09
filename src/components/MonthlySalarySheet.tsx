@@ -247,11 +247,36 @@ export default function MonthlySalarySheet({
     return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
   };
 
-  // List of all employees (sorted unki Employee ID ke natural order me as required!)
+  // Helper to check if worker has an active entry/attendance/work log or saved salary in the selected month
+  const hasEntryInMonth = (worker: Worker): boolean => {
+    const hasWork = dailyWorks.some(
+      dw => dw.workerId === worker.workerId && dw.date.startsWith(selectedMonth)
+    );
+    if (hasWork) return true;
+
+    const hasAtt = adminAttendances.some(
+      aa => aa.workerId === worker.workerId && aa.date.startsWith(selectedMonth)
+    );
+    if (hasAtt) return true;
+
+    const saved = salaries.find(
+      s => s.workerId === worker.workerId && s.month === selectedMonth
+    );
+    if (saved && (saved.baseSalary > 0 || saved.bonus > 0 || saved.advance > 0 || saved.deductions > 0 || saved.status === 'Paid')) {
+      return true;
+    }
+
+    return false;
+  };
+
+  // List of all employees (sorted in natural ID order)
   const sortedWorkers = naturalSortWorkers(workers);
 
-  // Filter workers based on Name or Employee ID
-  const filteredWorkers = sortedWorkers.filter(worker => {
+  // Filter workers who actually have an entry in the selected month
+  const workersWithMonthEntries = sortedWorkers.filter(hasEntryInMonth);
+
+  // Filter workers based on Name or Employee ID search
+  const filteredWorkers = workersWithMonthEntries.filter(worker => {
     const query = searchTerm.toLowerCase().trim();
     if (!query) return true;
     return (
@@ -316,7 +341,7 @@ export default function MonthlySalarySheet({
           </div>
           {searchTerm && (
             <p className="text-[10px] text-indigo-600 font-bold">
-              Showing {filteredWorkers.length} of {sortedWorkers.length} employees
+              Showing {filteredWorkers.length} of {workersWithMonthEntries.length} active entries
             </p>
           )}
         </div>
@@ -404,16 +429,16 @@ export default function MonthlySalarySheet({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-150 text-sm font-medium text-slate-700">
-              {sortedWorkers.length === 0 ? (
+              {workersWithMonthEntries.length === 0 ? (
                 <tr>
                   <td colSpan={9} className="px-5 py-12 text-center text-slate-400 font-semibold">
-                    No registered employees found. Please register staff in the Directory.
+                    No work or attendance entries recorded for {getMonthName(selectedMonth)}.
                   </td>
                 </tr>
               ) : filteredWorkers.length === 0 ? (
                 <tr>
                   <td colSpan={9} className="px-5 py-12 text-center text-slate-400 font-semibold">
-                    No employees matching the search criteria found.
+                    No employees matching search criteria found in {getMonthName(selectedMonth)} entries.
                   </td>
                 </tr>
               ) : (
@@ -436,9 +461,11 @@ export default function MonthlySalarySheet({
                         <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${
                           worker.employeeType === 'Worker' 
                             ? 'bg-indigo-50 text-indigo-700 border border-indigo-100' 
-                            : 'bg-purple-50 text-purple-700 border border-purple-100'
+                            : worker.employeeType === 'Admin Employee'
+                            ? 'bg-purple-50 text-purple-700 border border-purple-100'
+                            : 'bg-amber-50 text-amber-800 border border-amber-100'
                         }`}>
-                          {worker.employeeType === 'Worker' ? 'Loom' : 'Admin'}
+                          {worker.employeeType === 'Worker' ? 'Loom' : worker.employeeType === 'Admin Employee' ? 'Admin' : 'Others'}
                         </span>
                       </td>
 
