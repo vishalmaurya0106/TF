@@ -570,10 +570,21 @@ ALTER TABLE admin_attendances ENABLE ROW LEVEL SECURITY;
 ALTER TABLE attendances ENABLE ROW LEVEL SECURITY;
 ALTER TABLE salaries ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Allow public workers" ON workers;
 CREATE POLICY "Allow public workers" ON workers FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow public machines" ON machines;
 CREATE POLICY "Allow public machines" ON machines FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow public daily_works" ON daily_works;
 CREATE POLICY "Allow public daily_works" ON daily_works FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow public admin_attendances" ON admin_attendances;
 CREATE POLICY "Allow public admin_attendances" ON admin_attendances FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow public attendances" ON attendances;
 CREATE POLICY "Allow public attendances" ON attendances FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow public salaries" ON salaries;
 CREATE POLICY "Allow public salaries" ON salaries FOR ALL USING (true) WITH CHECK (true);
 `;

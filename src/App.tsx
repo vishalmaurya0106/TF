@@ -105,26 +105,26 @@ export default function App() {
   };
 
   // Helper to load state from localStorage with fallback
-  const getLocalOrSeed = <T,>(key: string, seed: T): T => {
+  const getLocalData = <T,>(key: string, fallback: T): T => {
     try {
       const item = localStorage.getItem(key);
-      if (item) {
+      if (item !== null) {
         const parsed = JSON.parse(item);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed as unknown as T;
+        if (Array.isArray(parsed)) return parsed as unknown as T;
       }
     } catch (e) {
       console.warn(`Failed to parse localStorage for ${key}`, e);
     }
-    return seed;
+    return fallback;
   };
 
   // --- Database & Supabase Persistence States ---
-  const [workers, setWorkers] = useState<Worker[]>(() => getLocalOrSeed('texflow_workers', SEED_WORKERS));
-  const [machines, setMachines] = useState<Machine[]>(() => getLocalOrSeed('texflow_machines', DEFAULT_MACHINES));
-  const [dailyWorks, setDailyWorks] = useState<DailyWork[]>(() => getLocalOrSeed('texflow_dailyWorks', SEED_DAILY_WORK));
-  const [adminAttendances, setAdminAttendances] = useState<AdminAttendance[]>(() => getLocalOrSeed('texflow_adminAttendances', SEED_ADMIN_ATTENDANCE));
-  const [attendances, setAttendances] = useState<Attendance[]>(() => getLocalOrSeed('texflow_attendances', SEED_LOOM_ATTENDANCE));
-  const [salaries, setSalaries] = useState<Salary[]>(() => getLocalOrSeed('texflow_salaries', SEED_SALARIES));
+  const [workers, setWorkers] = useState<Worker[]>(() => getLocalData('texflow_workers', []));
+  const [machines, setMachines] = useState<Machine[]>(() => getLocalData('texflow_machines', DEFAULT_MACHINES));
+  const [dailyWorks, setDailyWorks] = useState<DailyWork[]>(() => getLocalData('texflow_dailyWorks', []));
+  const [adminAttendances, setAdminAttendances] = useState<AdminAttendance[]>(() => getLocalData('texflow_adminAttendances', []));
+  const [attendances, setAttendances] = useState<Attendance[]>(() => getLocalData('texflow_attendances', []));
+  const [salaries, setSalaries] = useState<Salary[]>(() => getLocalData('texflow_salaries', []));
 
   // Sync state to localStorage whenever it changes
   useEffect(() => { localStorage.setItem('texflow_workers', JSON.stringify(workers)); }, [workers]);
@@ -172,13 +172,13 @@ export default function App() {
                            (spAtt?.length || 0) + (spSalaries?.length || 0);
 
         if (totalCount === 0) {
-          // Initialize empty Supabase PostgreSQL database with current local state
-          const curWorkers = getLocalOrSeed('texflow_workers', SEED_WORKERS);
-          const curMachines = getLocalOrSeed('texflow_machines', DEFAULT_MACHINES);
-          const curWorks = getLocalOrSeed('texflow_dailyWorks', SEED_DAILY_WORK);
-          const curAdminAtt = getLocalOrSeed('texflow_adminAttendances', SEED_ADMIN_ATTENDANCE);
-          const curAtt = getLocalOrSeed('texflow_attendances', SEED_LOOM_ATTENDANCE);
-          const curSalaries = getLocalOrSeed('texflow_salaries', SEED_SALARIES);
+          // Initialize Supabase PostgreSQL database with current local state
+          const curWorkers = getLocalData('texflow_workers', []);
+          const curMachines = getLocalData('texflow_machines', DEFAULT_MACHINES);
+          const curWorks = getLocalData('texflow_dailyWorks', []);
+          const curAdminAtt = getLocalData('texflow_adminAttendances', []);
+          const curAtt = getLocalData('texflow_attendances', []);
+          const curSalaries = getLocalData('texflow_salaries', []);
 
           await Promise.all([
             reconcileWorkersToSupabase(curWorkers).catch(() => {}),
@@ -189,12 +189,12 @@ export default function App() {
             reconcileSalariesToSupabase(curSalaries).catch(() => {})
           ]);
         } else {
-          if (spWorkers && spWorkers.length > 0) setWorkers(spWorkers);
-          if (spMachines && spMachines.length > 0) setMachines(spMachines);
-          if (spWorks && spWorks.length > 0) setDailyWorks(spWorks);
-          if (spAdminAtt && spAdminAtt.length > 0) setAdminAttendances(spAdminAtt);
-          if (spAtt && spAtt.length > 0) setAttendances(spAtt);
-          if (spSalaries && spSalaries.length > 0) setSalaries(spSalaries);
+          setWorkers(spWorkers || []);
+          setMachines(spMachines && spMachines.length > 0 ? spMachines : DEFAULT_MACHINES);
+          setDailyWorks(spWorks || []);
+          setAdminAttendances(spAdminAtt || []);
+          setAttendances(spAtt || []);
+          setSalaries(spSalaries || []);
         }
       } catch (err: any) {
         setSupabaseStatus('error');
@@ -439,7 +439,7 @@ export default function App() {
     reader.onload = async (event) => {
       try {
         const imported = JSON.parse(event.target?.result as string);
-        if (imported.workers && imported.machines && imported.dailyWorks) {
+        if (imported.workers || imported.machines || imported.dailyWorks || imported.salaries) {
           setIsSyncing(true);
           const impWorkers = imported.workers || [];
           const impMachines = imported.machines || [];
@@ -448,15 +448,7 @@ export default function App() {
           const impAtt = imported.attendances || [];
           const impSalaries = imported.salaries || [];
 
-          await Promise.all([
-            reconcileWorkersToSupabase(impWorkers),
-            reconcileMachinesToSupabase(impMachines),
-            reconcileDailyWorksToSupabase(impDailyWorks),
-            reconcileAdminAttendancesToSupabase(impAdminAtt),
-            reconcileAttendancesToSupabase(impAtt),
-            reconcileSalariesToSupabase(impSalaries)
-          ]);
-
+          // 1. Instantly update local state & localStorage
           setWorkers(impWorkers);
           setMachines(impMachines);
           setDailyWorks(impDailyWorks);
@@ -464,12 +456,26 @@ export default function App() {
           setAttendances(impAtt);
           setSalaries(impSalaries);
 
-          alert('Database successfully restored and written to Supabase from backup!');
+          // 2. Reconcile to Supabase
+          try {
+            await Promise.all([
+              reconcileWorkersToSupabase(impWorkers),
+              reconcileMachinesToSupabase(impMachines),
+              reconcileDailyWorksToSupabase(impDailyWorks),
+              reconcileAdminAttendancesToSupabase(impAdminAtt),
+              reconcileAttendancesToSupabase(impAtt),
+              reconcileSalariesToSupabase(impSalaries)
+            ]);
+            alert('Database restored successfully and synced with Supabase!');
+          } catch (spErr: any) {
+            console.warn('Backup restored locally, Supabase sync failed:', spErr);
+            alert(`Data restored locally on this device! (Supabase Cloud Sync Notice: ${spErr?.message || spErr})`);
+          }
         } else {
           alert('Invalid backup file format. Core fields missing.');
         }
       } catch (err: any) {
-        alert('Error restoring backup to Supabase: ' + (err?.message || err));
+        alert('Error restoring backup file: ' + (err?.message || err));
       } finally {
         setIsSyncing(false);
       }
