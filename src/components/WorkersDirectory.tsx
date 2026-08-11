@@ -208,44 +208,66 @@ export default function WorkersDirectory({
   // --- Excel Sample Download ---
   const handleDownloadExcelSample = () => {
     const defaultCompany = companies.length > 0 ? companies[0].name : "TexFlow Textiles Pvt Ltd";
+    
+    const headers = [
+      "Employee ID",
+      "Full Name",
+      "Aadhaar Number",
+      "BLANK COLUMN",
+      "Employee Type",
+      "Mobile Number",
+      "Beneficiary Name",
+      "Account Number",
+      "IFSC Code",
+      "Bank Name",
+      "Per Machine or Daily Rate",
+      "Monthly Salary",
+      "Monthly Days",
+      "Company Name",
+      "Address",
+      "Joining Date"
+    ];
+
     const sampleRows = [
       {
         "Employee ID": "101",
         "Full Name": "Ramesh Kumar",
-        "Company Name": defaultCompany,
+        "Aadhaar Number": "123456789012",
+        "BLANK COLUMN": "",
         "Employee Type": "Worker",
+        "Mobile Number": "9876543210",
+        "Beneficiary Name": "Ramesh Kumar",
+        "Account Number": "32109876543",
+        "IFSC Code": "SBIN0001234",
+        "Bank Name": "State Bank of India",
         "Per Machine or Daily Rate": 350,
         "Monthly Salary": 15000,
         "Monthly Days": 26,
-        "Mobile Number": "9876543210",
-        "Aadhaar Number": "123456789012",
+        "Company Name": defaultCompany,
         "Address": "Quarter 4, TexFlow Factory",
-        "Joining Date": "2026-01-01",
-        "Bank Name": "State Bank of India",
-        "Account Number": "32109876543",
-        "IFSC Code": "SBIN0001234",
-        "Beneficiary Name": "Ramesh Kumar"
+        "Joining Date": "2026-01-01"
       },
       {
         "Employee ID": "102",
         "Full Name": "Suresh Sharma",
-        "Company Name": defaultCompany,
+        "Aadhaar Number": "",
+        "BLANK COLUMN": "",
         "Employee Type": "Admin Employee",
+        "Mobile Number": "",
+        "Beneficiary Name": "",
+        "Account Number": "",
+        "IFSC Code": "",
+        "Bank Name": "",
         "Per Machine or Daily Rate": 1200,
         "Monthly Salary": 30000,
         "Monthly Days": 30,
-        "Mobile Number": "",
-        "Aadhaar Number": "",
+        "Company Name": defaultCompany,
         "Address": "",
-        "Joining Date": "2026-01-15",
-        "Bank Name": "",
-        "Account Number": "",
-        "IFSC Code": "",
-        "Beneficiary Name": ""
+        "Joining Date": "2026-01-15"
       }
     ];
 
-    const worksheet = XLSX.utils.json_to_sheet(sampleRows);
+    const worksheet = XLSX.utils.json_to_sheet(sampleRows, { header: headers });
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Employees_Template");
     XLSX.writeFile(workbook, "TexFlow_Employee_Import_Sample.xlsx");
